@@ -495,17 +495,54 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v6
-      - name: Download all artifacts
-        uses: actions/download-artifact@v7
+      - name: Download CPU x64 artifact
+        uses: ./.github/actions/download-artifact
         with:
-          path: artifacts
-          merge-multiple: true
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CPU arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CUDA x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CUDA arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Vulkan x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Vulkan arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ needs.check-version.outputs.whisper-tag }}
           name: ${{ needs.check-version.outputs.whisper-tag }}
-          artifacts: artifacts/*.tar.gz
+          artifacts: "*.tar.gz"
           allowUpdates: true
           replacesArtifacts: true
           body: |

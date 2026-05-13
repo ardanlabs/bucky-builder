@@ -1,0 +1,42 @@
+name: "Download Artifact from Workflow"
+description: "Download an artifact from a workflow run by run ID"
+inputs:
+  run-id:
+    description: "Workflow run ID"
+    required: true
+  artifact-name:
+    description: "Name of the artifact to download"
+    required: true
+  destination:
+    description: "Destination path for the downloaded artifact (without .zip extension)"
+    required: true
+  token:
+    description: "GitHub token for authentication"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download artifact
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -xe
+
+        REPO="${{ github.repository }}"
+        RUN_ID="${{ inputs.run-id }}"
+        ARTIFACT_NAME="${{ inputs.artifact-name }}"
+        DESTINATION="${{ inputs.destination }}"
+
+        DOWNLOAD_URL=$(
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${REPO}/actions/runs/${RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "'${ARTIFACT_NAME}'") | .archive_download_url'
+        )
+
+        set +x
+        curl -H "Accept: application/vnd.github+json" -H "Authorization: token ${{ inputs.token }}" -L -o "${DESTINATION}" "$DOWNLOAD_URL"
+        set -x
