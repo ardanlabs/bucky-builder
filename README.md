@@ -65,9 +65,15 @@ For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
 | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
 
 All tarballs unpack to `whisper-vX.Y.Z/` containing `libwhisper.so`,
-`libggml.so`, `libggml-base.so`, `libggml-cpu.so`, and (where applicable)
-`libggml-cuda.so` / `libggml-vulkan.so`. RPATH is `$ORIGIN`, so the
-libraries are self-contained regardless of where bucky drops them.
+`libggml.so`, `libggml-base.so`, `libggml-cpu.so`, the per-microarch CPU
+variants from `GGML_CPU_ALL_VARIANTS=ON` (`libggml-cpu-x64.so`,
+`libggml-cpu-haswell.so`, `libggml-cpu-skylakex.so`, `libggml-cpu-zen4.so`,
+…), and (where applicable) `libggml-cuda.so` / `libggml-vulkan.so`. The
+backend MODULEs are installed alongside the core libs via
+`-DCMAKE_INSTALL_BINDIR=lib` so the dlopen-based registry
+(`ggml_backend_load_all_from_path`) finds them on a single path. RPATH is
+`$ORIGIN`, so the libraries are self-contained regardless of where bucky
+drops them.
 
 ## How to check the latest version
 
