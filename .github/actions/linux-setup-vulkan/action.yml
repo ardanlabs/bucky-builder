@@ -1,10 +1,12 @@
-name: Setup Vulkan SDK on Linux
+name: Setup Vulkan SDK on Linux ARM64
 description: |
-  Downloads + extracts a prebuilt Vulkan SDK into the requested path so the
-  whisper.cpp build can find vulkan headers / libs / glslc. Handles both x86_64
-  (LunarG) and aarch64 (jakoch/vulkan-sdk-arm) — upstream LunarG does not ship
-  ARM tarballs, so the ARM SDK comes from the community-maintained jakoch
-  builds, mirroring how hybridgroup/llama-cpp-builder sources it.
+  Downloads + extracts the jakoch/vulkan-sdk-arm prebuilt Vulkan SDK so the
+  whisper.cpp ARM64 Vulkan build can find headers / libs / glslc. LunarG
+  does not ship ARM tarballs upstream; this is the community-maintained
+  source the hybridgroup/llama-cpp-builder pipeline also relies on.
+
+  amd64 jobs do NOT use this action — they install vulkan-sdk via the
+  LunarG apt repo, which is more robust than scraping tarballs.
 inputs:
   path:
     description: Directory to extract the SDK into
@@ -20,37 +22,42 @@ runs:
   steps:
     - shell: bash
       run: |
-        set -e
+        set -euo pipefail
+
+        arch=$(uname -m)
+        if [ "$arch" != "aarch64" ] && [ "$arch" != "arm64" ]; then
+          echo "linux-setup-vulkan: this action is arm64-only, got $arch" >&2
+          exit 1
+        fi
+
         mkdir -p "${{ inputs.path }}"
         cd "${{ inputs.path }}"
 
-        arch=$(uname -m)
-        case "$arch" in
-          x86_64)
-            # LunarG ships an x86_64 .tar.xz that extracts to <ver>/x86_64/.
-            url="https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/linux/vulkan_sdk.tar.xz"
-            wget -O vulkan_sdk.tar.xz "$url"
-            tar -xf vulkan_sdk.tar.xz --strip-components=1
-            rm vulkan_sdk.tar.xz
-            # LunarG's setup-env.sh lives at x86_64/setup-env.sh; symlink it
-            # to the SDK root so the calling workflow can `source setup-env.sh`
-            # without caring about arch.
-            ln -sf x86_64/setup-env.sh setup-env.sh
-            ;;
-          aarch64|arm64)
-            # jakoch/vulkan-sdk-arm release artifact filename pattern:
-            #   vulkan-sdk-linux-arm64-<ver>-ubuntu-<osversion>.tar.gz
-            url="https://github.com/jakoch/vulkan-sdk-arm/releases/download/sdk-${{ inputs.version }}/vulkan-sdk-linux-arm64-${{ inputs.version }}-ubuntu-${{ inputs.osversion }}.tar.gz"
-            wget -O vulkan_sdk.tar.gz "$url"
-            tar -xf vulkan_sdk.tar.gz --strip-components=1
-            rm vulkan_sdk.tar.gz
-            # Same convention as the LunarG SDK — make setup-env.sh top-level.
-            if [ ! -f setup-env.sh ] && [ -f arm64/setup-env.sh ]; then
-              ln -sf arm64/setup-env.sh setup-env.sh
-            fi
-            ;;
-          *)
-            echo "linux-setup-vulkan: unsupported arch $arch" >&2
-            exit 1
-            ;;
-        esac
+        # Asset filename pattern from jakoch/vulkan-sdk-arm releases:
+        #   vulkansdk-ubuntu-<osversion>-arm-<version>.tar.xz
+        # Release tag is the bare version string, e.g. "1.4.335.0".
+        url="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${{ inputs.version }}/vulkansdk-ubuntu-${{ inputs.osversion }}-arm-${{ inputs.version }}.tar.xz"
+        echo "Downloading $url"
+        # --content-on-error=off prevents wget from writing 404 HTML to disk
+        # and silently passing tar a corrupt file.
+        wget --content-on-error=off -O vulkan_sdk.tar.xz "$url"
+
+        echo "Inspecting archive contents (first 20 entries):"
+        tar -tf vulkan_sdk.tar.xz | head -n 20
+
+        tar -xf vulkan_sdk.tar.xz --strip-components=1
+        rm vulkan_sdk.tar.xz
+
+        # The SDK lays out files under <ver>/arm64/... when not stripped;
+        # after --strip-components=1 the arm64/ dir is at the SDK root and
+        # setup-env.sh lives at arm64/setup-env.sh. Symlink it so callers
+        # can `source setup-env.sh` without caring about the layout.
+        if [ -f arm64/setup-env.sh ]; then
+          ln -sf arm64/setup-env.sh setup-env.sh
+        fi
+
+        if [ ! -f setup-env.sh ]; then
+          echo "linux-setup-vulkan: setup-env.sh not found after extract:" >&2
+          ls -la
+          exit 1
+        fi

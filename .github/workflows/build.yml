@@ -374,12 +374,23 @@ jobs:
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
-      - name: Install dependencies
+      - name: Install dependencies + Vulkan SDK
+        # LunarG's apt repo ships the full Vulkan SDK system-wide, which is
+        # far more reliable than fetching their .tar.xz (the tarball URL
+        # pattern shifts between releases). On the runner, ubuntu-latest =
+        # noble (24.04), so use the noble package list. No `source
+        # setup-env.sh` needed afterwards — pkg-config + /usr/include find
+        # everything.
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          set -e
           sudo apt-get update
-          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget gpg
+          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          sudo apt-get update
+          sudo apt-get install -y vulkan-sdk
       - name: Setup cmake 4.2.0
         run: |
           mkdir -p ./cmake-4.2.0
@@ -388,25 +399,9 @@ jobs:
           sudo sh cmake.sh --prefix=/usr/local --skip-license
           cd ..
           rm -rf cmake-4.2.0
-      - name: Set Vulkan SDK version
-        run: echo "VULKAN_SDK_VERSION=1.4.335.0" >> "$GITHUB_ENV"
-      - name: Use Vulkan SDK Cache
-        uses: actions/cache@v5
-        id: cache-sdk
-        with:
-          path: ./vulkan_sdk
-          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-${{ runner.os }}-amd64
-      - name: Setup Vulkan SDK
-        if: steps.cache-sdk.outputs.cache-hit != 'true'
-        uses: ./.github/actions/linux-setup-vulkan
-        with:
-          path: ./vulkan_sdk
-          version: ${{ env.VULKAN_SDK_VERSION }}
-          osversion: 24.04
       - name: Build amd64
         working-directory: whisper.cpp
         run: |
-          source $GITHUB_WORKSPACE/vulkan_sdk/setup-env.sh
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -492,7 +487,7 @@ jobs:
         id: cache-sdk
         with:
           path: ./vulkan_sdk
-          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-${{ runner.os }}-arm64
+          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-${{ runner.os }}-arm64-v2
       - name: Setup Vulkan SDK
         if: steps.cache-sdk.outputs.cache-hit != 'true'
         uses: ./.github/actions/linux-setup-vulkan
