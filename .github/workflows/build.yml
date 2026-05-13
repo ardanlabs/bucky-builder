@@ -104,7 +104,8 @@ jobs:
             -DWHISPER_BUILD_SERVER=OFF \
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
-            -DGGML_BACKEND_DL=ON
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
           cmake --build build --config Release -j $(nproc)
           cmake --install build --prefix dist
       - name: Pack artifacts
@@ -168,7 +169,8 @@ jobs:
             -DWHISPER_BUILD_SERVER=OFF \
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
-            -DGGML_BACKEND_DL=ON
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
           cmake --build build --config Release -j $(nproc)
           cmake --install build --prefix dist
       - name: Pack artifacts
@@ -235,7 +237,8 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
             -DGGML_CUDA=ON \
-            -DGGML_BACKEND_DL=ON
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
           cmake --build build --config Release -j $(nproc)
           cmake --install build --prefix dist
       - name: Pack artifacts
@@ -306,7 +309,8 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
             -DGGML_CUDA=ON \
-            -DGGML_BACKEND_DL=ON
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
           cmake --build build --config Release -j $(nproc)
           cmake --install build --prefix dist
       - name: Pack artifacts
@@ -380,7 +384,8 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
             -DGGML_VULKAN=ON \
-            -DGGML_BACKEND_DL=ON
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
           cmake --build build --config Release -j $(nproc)
           cmake --install build --prefix dist
       - name: Pack artifacts
@@ -462,7 +467,8 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
             -DGGML_VULKAN=ON \
-            -DGGML_BACKEND_DL=ON
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
           cmake --build build --config Release -j $(nproc)
           cmake --install build --prefix dist
       - name: Pack artifacts
