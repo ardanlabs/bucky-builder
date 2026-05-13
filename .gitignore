@@ -1,0 +1,13 @@
+# Cloned upstream sources / local build trees from running the workflow's
+# steps locally for debugging.
+whisper.cpp/
+gcc-14.3.0/
+gcc-install/
+cmake-4.2.0/
+vulkan_sdk/
+
+# Built artifacts.
+*.tar.gz
+*.zip
+dist/
+build/
