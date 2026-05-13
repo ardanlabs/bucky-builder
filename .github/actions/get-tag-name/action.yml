@@ -1,0 +1,26 @@
+name: Get tag name
+description: |
+  Returns the most recent whisper.cpp-style release tag (vMAJOR.MINOR.PATCH) in
+  the given git checkout. Used by the build workflow to compare the upstream
+  whisper.cpp tag against the bucky-builder repo's own latest tag and skip
+  rebuilding when they already match.
+inputs:
+  repo-path:
+    description: Path to the git working tree to inspect
+    required: true
+outputs:
+  name:
+    description: The newest matching tag (e.g. v1.8.4), or empty if none
+    value: ${{ steps.tag.outputs.name }}
+runs:
+  using: composite
+  steps:
+    - id: tag
+      shell: bash
+      working-directory: ${{ inputs.repo-path }}
+      run: |
+        # whisper.cpp tags look like v1.8.4 — match strictly so release-candidate
+        # / pre-release tags (vX.Y.Z-rcN) do not bleed in. sort -V handles
+        # version ordering correctly across major/minor/patch.
+        name=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+        echo "name=$name" >> "$GITHUB_OUTPUT"

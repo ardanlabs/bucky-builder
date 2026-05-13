@@ -1,0 +1,57 @@
+name: Setup Vulkan SDK on Linux ARM64
+description: |
+  Downloads + extracts the jakoch/vulkan-sdk-arm prebuilt Vulkan SDK so the
+  whisper.cpp ARM64 Vulkan build can find headers / libs / glslc. LunarG
+  does not ship ARM tarballs upstream; this is the community-maintained
+  source the hybridgroup/llama-cpp-builder pipeline also relies on.
+
+  amd64 jobs do NOT use this action — they install vulkan-sdk via the
+  LunarG apt repo, which is more robust than scraping tarballs.
+inputs:
+  path:
+    description: Directory to extract the SDK into
+    required: true
+  version:
+    description: Vulkan SDK version (e.g. 1.4.335.0)
+    required: true
+  osversion:
+    description: Ubuntu major.minor (22.04 or 24.04) — selects the matching ARM tarball
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        arch=$(uname -m)
+        if [ "$arch" != "aarch64" ] && [ "$arch" != "arm64" ]; then
+          echo "linux-setup-vulkan: this action is arm64-only, got $arch" >&2
+          exit 1
+        fi
+
+        mkdir -p "${{ inputs.path }}"
+        cd "${{ inputs.path }}"
+
+        # Asset filename pattern from jakoch/vulkan-sdk-arm releases:
+        #   vulkansdk-ubuntu-<osversion>-arm-<version>.tar.xz
+        # Release tag is the bare version string, e.g. "1.4.335.0".
+        url="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${{ inputs.version }}/vulkansdk-ubuntu-${{ inputs.osversion }}-arm-${{ inputs.version }}.tar.xz"
+        echo "Downloading $url"
+        # --content-on-error=off prevents wget from writing 404 HTML to disk
+        # and silently passing tar a corrupt file.
+        wget --content-on-error=off -O vulkan_sdk.tar.xz "$url"
+
+        # Archive layout (after --strip-components=1):
+        #   setup-env.sh        ← already at root, no symlink needed
+        #   aarch64/share/...   ← arch dir is "aarch64", not "arm64"
+        #   aarch64/lib/...
+        #   config/, vulkansdk, README.txt, LICENSE.txt
+        tar -xf vulkan_sdk.tar.xz --strip-components=1
+        rm vulkan_sdk.tar.xz
+
+        if [ ! -f setup-env.sh ]; then
+          echo "linux-setup-vulkan: setup-env.sh not found after extract:" >&2
+          ls -la
+          exit 1
+        fi

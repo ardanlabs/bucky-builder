@@ -1,0 +1,585 @@
+name: Build
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule:
+    # Hourly cron — checks for a new whisper.cpp release tag and only triggers
+    # downstream builds when one is found. Mirrors hybridgroup/llama-cpp-builder.
+    - cron: '15 * * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # check-version compares the latest upstream whisper.cpp release tag against
+  # the bucky-builder repo's own latest release tag. All build jobs gate on
+  # whisper-tag != current-tag so the hourly cron is a no-op until a new
+  # whisper.cpp version ships.
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      whisper-tag: ${{ steps.tags.outputs.whisper-tag }}
+      current-tag: ${{ steps.tags.outputs.current-tag }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          fetch-tags: 'true'
+      - name: Fetch whisper tags
+        run: |
+          cd whisper.cpp
+          git fetch --prune --prune-tags --unshallow --no-recurse-submodules
+      - name: Determine whisper.cpp tag name
+        id: whispertag
+        uses: ./.github/actions/get-tag-name
+        with:
+          repo-path: ./whisper.cpp
+      - name: Fetch tags
+        run: |
+          git fetch --prune --prune-tags --unshallow --no-recurse-submodules
+      - name: Determine own tag name
+        id: currenttag
+        uses: ./.github/actions/get-tag-name
+        with:
+          repo-path: .
+      - name: Save tags
+        id: tags
+        run: |
+          echo "whisper-tag=${{ steps.whispertag.outputs.name }}" >> "$GITHUB_OUTPUT"
+          echo "current-tag=${{ steps.currenttag.outputs.name }}" >> "$GITHUB_OUTPUT"
+          echo "Upstream whisper.cpp: ${{ steps.whispertag.outputs.name }}"
+          echo "bucky-builder latest: ${{ steps.currenttag.outputs.name }}"
+
+  # ─── CPU ────────────────────────────────────────────────────────────────
+  # Unlike llama.cpp, whisper.cpp publishes NO Linux release artifacts at
+  # all, so bucky-builder is the source of truth for both amd64 and arm64
+  # CPU bundles. (yzma can lean on upstream for amd64 CPU; we cannot.)
+
+  build-cpu-amd64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-x86_64.sh
+          sudo sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build amd64
+        working-directory: whisper.cpp
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz
+          archive: false
+
+  build-cpu-arm64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies + GCC 14
+        # Ubuntu 22.04 ships GCC 11; whisper.cpp's ggml needs newer C++17.
+        # Pull GCC 14 from the ubuntu-toolchain-r/test PPA in ~30s instead of
+        # building from source (~30min).
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget gcc-14 g++-14
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-aarch64.sh
+          sudo sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build arm64
+        working-directory: whisper.cpp
+        run: |
+          export CC=gcc-14
+          export CXX=g++-14
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz
+          archive: false
+
+  # ─── CUDA ───────────────────────────────────────────────────────────────
+  # CUDA 12.9 baseline. Add a cuda-13 sibling job when consumer GPUs / Jetson
+  # firmware widely move to CUDA 13 — same pattern yzma uses to ship both.
+
+  build-cuda-amd64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:12.9.1-devel-ubuntu24.04
+      options: --platform linux/amd64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt update
+          apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-x86_64.sh
+          sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build amd64
+        working-directory: whisper.cpp
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
+            -DCMAKE_CUDA_ARCHITECTURES="86;89" \
+            -DCMAKE_DISABLE_FIND_PACKAGE_NCCL=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_CUDA=ON \
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz
+          archive: false
+
+  build-cuda-arm64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-22.04-arm
+    container:
+      image: nvidia/cuda:12.9.1-devel-ubuntu22.04
+      options: --platform linux/arm64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies + GCC 14
+        # Container is nvidia/cuda:12.9.1-devel-ubuntu22.04 — already root,
+        # so no sudo. Pull GCC 14 from ubuntu-toolchain-r/test (CUDA 12.9
+        # supports GCC <= 14 as host compiler).
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt update
+          apt install -y software-properties-common
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          apt update
+          apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget gcc-14 g++-14
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-aarch64.sh
+          sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build arm64
+        working-directory: whisper.cpp
+        run: |
+          export CC=gcc-14
+          export CXX=g++-14
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
+            -DCMAKE_CUDA_ARCHITECTURES="87" \
+            -DCMAKE_DISABLE_FIND_PACKAGE_NCCL=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_CUDA=ON \
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          archive: false
+
+  # ─── Vulkan ─────────────────────────────────────────────────────────────
+  # Vulkan covers AMD / Intel / NVIDIA / Qualcomm GPUs with a single binary.
+  # whisper.cpp's Vulkan backend is less mature than llama.cpp's but still
+  # useful as a CUDA-free GPU fallback.
+
+  build-vulkan-amd64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies + Vulkan SDK
+        # LunarG's apt repo ships the full Vulkan SDK system-wide, which is
+        # far more reliable than fetching their .tar.xz (the tarball URL
+        # pattern shifts between releases). On the runner, ubuntu-latest =
+        # noble (24.04), so use the noble package list. No `source
+        # setup-env.sh` needed afterwards — pkg-config + /usr/include find
+        # everything.
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget gpg
+          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          sudo apt-get update
+          sudo apt-get install -y vulkan-sdk
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-x86_64.sh
+          sudo sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build amd64
+        working-directory: whisper.cpp
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_VULKAN=ON \
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz
+          archive: false
+
+  build-vulkan-arm64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies + GCC 14
+        # Pull GCC 14 from ubuntu-toolchain-r/test PPA in ~30s instead of
+        # building from source (~30min).
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:kisak/kisak-mesa
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget gcc-14 g++-14
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-aarch64.sh
+          sudo sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Set Vulkan SDK version
+        run: echo "VULKAN_SDK_VERSION=1.4.335.0" >> "$GITHUB_ENV"
+      - name: Use Vulkan SDK Cache
+        uses: actions/cache@v5
+        id: cache-sdk
+        with:
+          path: ./vulkan_sdk
+          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-${{ runner.os }}-arm64-v2
+      - name: Setup Vulkan SDK
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        uses: ./.github/actions/linux-setup-vulkan
+        with:
+          path: ./vulkan_sdk
+          version: ${{ env.VULKAN_SDK_VERSION }}
+          osversion: 22.04
+      - name: Build arm64
+        working-directory: whisper.cpp
+        run: |
+          export CC=gcc-14
+          export CXX=g++-14
+          source $GITHUB_WORKSPACE/vulkan_sdk/setup-env.sh
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_VULKAN=ON \
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
+          archive: false
+
+  # ─── Release ────────────────────────────────────────────────────────────
+
+  release:
+    needs:
+      - check-version
+      - build-cpu-amd64
+      - build-cpu-arm64
+      - build-cuda-amd64
+      - build-cuda-arm64
+      - build-vulkan-amd64
+      - build-vulkan-arm64
+    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Download CPU x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CPU arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cpu-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CUDA x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CUDA arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Vulkan x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Vulkan arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ needs.check-version.outputs.whisper-tag }}
+          name: ${{ needs.check-version.outputs.whisper-tag }}
+          artifacts: "*.tar.gz"
+          allowUpdates: true
+          replacesArtifacts: true
+          body: |
+            Prebuilt whisper.cpp ${{ needs.check-version.outputs.whisper-tag }} libraries for Linux.
+
+            Used by [bucky](https://github.com/ardanlabs/bucky)'s `bucky install` command.
+
+  publish-version:
+    needs:
+      - check-version
+      - release
+    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    uses: ./.github/workflows/publish-version.yml
+    with:
+      tag: ${{ needs.check-version.outputs.whisper-tag }}
+
+  trigger-bucky-tests:
+    needs:
+      - check-version
+      - publish-version
+    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger bucky CI
+        # Requires a repo-level secret BUCKY_BUILD_ACCESS = a PAT with
+        # `actions:write` on ardanlabs/bucky. Without it this step is skipped
+        # gracefully (we don't want the release itself to fail because the
+        # downstream nudge couldn't fire).
+        if: ${{ env.BUCKY_BUILD_ACCESS != '' }}
+        env:
+          BUCKY_BUILD_ACCESS: ${{ secrets.BUCKY_BUILD_ACCESS }}
+        run: |
+          for wf in linux.yml macos.yml windows.yml; do
+            curl -fsSL -X POST \
+              -H "Authorization: Bearer $BUCKY_BUILD_ACCESS" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/ardanlabs/bucky/actions/workflows/$wf/dispatches" \
+              -d '{"ref":"main"}'
+          done

@@ -1,0 +1,51 @@
+name: Publish version
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The whisper.cpp release tag just published (e.g. v1.8.4)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to publish to version.json
+        required: true
+        type: string
+
+# version.json is the discovery endpoint bucky's `install` command queries
+# instead of hitting the GitHub releases API directly. Serving it from
+# GitHub Pages avoids the unauthenticated API rate limit that bit our macOS
+# CI run.
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Build site
+        run: |
+          mkdir -p _site
+          # Single-file payload. Keep the schema dead-simple so older bucky
+          # binaries that just decode {tag_name string} keep working.
+          printf '{"tag_name":"%s"}\n' '${{ inputs.tag }}' > _site/version.json
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
