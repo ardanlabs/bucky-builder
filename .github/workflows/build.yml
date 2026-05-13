@@ -488,7 +488,7 @@ jobs:
       - build-cuda-arm64
       - build-vulkan-amd64
       - build-vulkan-arm64
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -554,7 +554,7 @@ jobs:
     needs:
       - check-version
       - release
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
     uses: ./.github/workflows/publish-version.yml
     with:
       tag: ${{ needs.check-version.outputs.whisper-tag }}
@@ -563,7 +563,7 @@ jobs:
     needs:
       - check-version
       - publish-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger bucky CI

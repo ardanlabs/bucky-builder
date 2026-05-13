@@ -1,81 +1,82 @@
-# bucky-builder
+# Bucky Builder
 
-Prebuilt [whisper.cpp](https://github.com/ggml-org/whisper.cpp) shared
-libraries for Linux, used by [bucky](https://github.com/ardanlabs/bucky)'s
-`bucky install` command.
+## Prebuilt binaries for CPU, CUDA, and Vulkan on Linux
+
+This repo builds binary versions of `whisper.cpp` shared libraries for
+architectures that are not already part of the normal upstream builds, such
+as Linux with CUDA or Vulkan support, and Linux arm64 CPU.
+
+New releases are automatically built for the latest release version of
+`whisper.cpp`. The latest release is checked once per hour.
+
+Used by [bucky](https://github.com/ardanlabs/bucky)'s `bucky install`
+command. bucky lets you write Go applications that directly integrate the
+latest `whisper.cpp` libraries.
 
 Mirrors the role [hybridgroup/llama-cpp-builder](https://github.com/hybridgroup/llama-cpp-builder)
-plays for [yzma](https://github.com/hybridgroup/yzma): whisper.cpp upstream
-publishes no Linux release artifact, so this repo builds them on a cron and
-republishes them as GitHub Releases tagged with the matching whisper.cpp
-version.
+plays for [yzma](https://github.com/hybridgroup/yzma).
+
+## CUDA
+
+Currently supported CUDA build configurations:
+
+| CPU arch | OS           | CUDA   | Nvidia Compute arch |
+| -------- | ------------ | ------ | ------------------- |
+| amd64    | Ubuntu 24.04 | 12.9.1 | 86, 89              |
+| arm64    | Ubuntu 22.04 | 12.9.1 | 87                  |
+
+Compute architectures `86` and `89` are those used by consumer video cards
+(RTX 3090 / 4090).
+
+Compute architecture `87` is used by Jetson Orin and Jetson AGX.
+
+## Vulkan
+
+Currently supported Vulkan build configurations:
+
+| CPU arch | OS           | Vulkan SDK                  |
+| -------- | ------------ | --------------------------- |
+| amd64    | Ubuntu 24.04 | latest LunarG noble package |
+| arm64    | Ubuntu 22.04 | 1.4.335.0                   |
+
+The arm64 prebuilt Vulkan SDK comes from
+<https://github.com/jakoch/vulkan-sdk-arm>.
+
+## CPU
+
+Currently supported CPU build configurations:
+
+| CPU arch | OS           | Notes                                       |
+| -------- | ------------ | ------------------------------------------- |
+| amd64    | Ubuntu 24.04 | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
+| arm64    | Ubuntu 22.04 |                                             |
 
 ## Artifacts
 
 For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
 
-| Filename | Arch | Backend | Notes |
-|---|---|---|---|
-| `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz` | amd64 | CPU | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
-| `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz` | arm64 | CPU | |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz` | amd64 | CUDA 12.9 | sm_86;sm_89 (RTX 3090/4090) |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz` | arm64 | CUDA 12.9 | sm_87 (Jetson Orin) |
-| `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz` | amd64 | Vulkan 1.4.335 | |
-| `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` | arm64 | Vulkan 1.4.335 | |
+| Filename                                        |
+| ----------------------------------------------- |
+| `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`      |
+| `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`    |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`     |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`   |
+| `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz`   |
+| `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
 
 All tarballs unpack to `whisper-vX.Y.Z/` containing `libwhisper.so`,
 `libggml.so`, `libggml-base.so`, `libggml-cpu.so`, and (where applicable)
-`libggml-cuda.so` / `libggml-vulkan.so`. RPATH is `$ORIGIN`, so the libraries
-are self-contained regardless of where bucky drops them.
+`libggml-cuda.so` / `libggml-vulkan.so`. RPATH is `$ORIGIN`, so the
+libraries are self-contained regardless of where bucky drops them.
 
-## Discovery endpoint
-
-The latest version is published as JSON to GitHub Pages at:
+## How to check the latest version
 
 ```
-https://ardanlabs.github.io/bucky-builder/version.json
-```
-
-Schema:
-
-```json
-{"tag_name": "v1.8.4"}
+VERSION=$(curl -s https://ardanlabs.github.io/bucky-builder/version.json | jq -r '.tag_name')
 ```
 
 bucky reads this instead of the GitHub releases API to avoid the
 unauthenticated rate limit.
-
-## How a release happens
-
-```
-hourly cron (15 * * * *)
-       │
-       ▼
-╭──────────────────────────╮
-│ check-version            │  diff upstream whisper.cpp tag vs own latest tag
-│ (skip if equal)          │  → all build jobs gated on tag mismatch
-╰──────────────┬───────────╯
-               │
-   ┌───────────┼───────────┬──────────────┬──────────────┬──────────────┐
-   ▼           ▼           ▼              ▼              ▼              ▼
- cpu-amd64  cpu-arm64  cuda-amd64    cuda-arm64    vulkan-amd64   vulkan-arm64
-   │           │           │              │              │              │
-   └───────────┴───────────┴──────┬───────┴──────────────┴──────────────┘
-                                  ▼
-                         ╭─────────────────╮
-                         │ release         │  ncipollo/release-action
-                         │ tag = vX.Y.Z    │
-                         ╰────────┬────────╯
-                                  │
-                         ╭────────▼─────────╮
-                         │ publish-version  │  → version.json on GitHub Pages
-                         ╰────────┬─────────╯
-                                  │
-                         ╭────────▼──────────────╮
-                         │ trigger-bucky-tests   │  workflow_dispatch on
-                         │ (needs PAT secret)    │  ardanlabs/bucky CI
-                         ╰───────────────────────╯
-```
 
 ## Manually rebuilding a single tag
 
