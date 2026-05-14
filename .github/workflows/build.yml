@@ -12,7 +12,10 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only cancel in-progress runs for PRs. On main (push / cron / manual)
+  # we let runs queue so a cancelled run never lingers on the commit and
+  # paints a red X on an otherwise-successful release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # check-version compares the latest upstream whisper.cpp release tag against

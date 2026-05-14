@@ -1,5 +1,7 @@
 # Bucky Builder
 
+[![Build](https://github.com/ardanlabs/bucky-builder/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/ardanlabs/bucky-builder/actions/workflows/build.yml)
+
 ## Prebuilt binaries for CPU, CUDA, and Vulkan on Linux
 
 This repo builds binary versions of `whisper.cpp` shared libraries for
