@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild even when bucky-builder is already at the latest whisper.cpp tag (use to backfill artifacts onto an existing release).'
+        type: boolean
+        default: false
   schedule:
     # Hourly cron — checks for a new whisper.cpp release tag and only triggers
     # downstream builds when one is found. Mirrors hybridgroup/llama-cpp-builder.
@@ -68,7 +73,7 @@ jobs:
 
   build-cpu-amd64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
@@ -125,7 +130,7 @@ jobs:
 
   build-cpu-arm64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Check out the repo
@@ -194,7 +199,7 @@ jobs:
 
   build-cuda-amd64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-latest
     container:
       image: nvidia/cuda:12.9.1-devel-ubuntu24.04
@@ -258,7 +263,7 @@ jobs:
 
   build-cuda-arm64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-22.04-arm
     container:
       image: nvidia/cuda:12.9.1-devel-ubuntu22.04
@@ -335,7 +340,7 @@ jobs:
 
   build-vulkan-amd64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
@@ -405,7 +410,7 @@ jobs:
 
   build-vulkan-arm64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Check out the repo
@@ -499,7 +504,7 @@ jobs:
 
   build-darwin-xcframework:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: macos-latest
     steps:
       - name: Check out the repo
@@ -544,7 +549,7 @@ jobs:
 
   build-windows-cpu-x64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: windows-latest
     steps:
       - name: Check out the repo
@@ -605,7 +610,7 @@ jobs:
       - build-vulkan-arm64
       - build-darwin-xcframework
       - build-windows-cpu-x64
-    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ github.event_name != 'pull_request' && (needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -685,7 +690,7 @@ jobs:
     needs:
       - check-version
       - release
-    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ github.event_name != 'pull_request' && (needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force) }}
     uses: ./.github/workflows/publish-version.yml
     with:
       tag: ${{ needs.check-version.outputs.whisper-tag }}
@@ -694,7 +699,7 @@ jobs:
     needs:
       - check-version
       - publish-version
-    if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    if: ${{ github.event_name != 'pull_request' && (needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force) }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger bucky CI
