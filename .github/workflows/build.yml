@@ -521,11 +521,19 @@ jobs:
         run: |
           ./build-xcframework.sh
       - name: Repackage as macOS-only xcframework
+        # -debug-symbols is intentionally omitted. The dSYM upstream's
+        # script produces at build-macos/dSYMs/whisper.dSYM is rejected
+        # as "not a valid debug symbols file" by xcodebuild on the
+        # current macos-latest Xcode (see ardanlabs/bucky-builder run
+        # 26759817672). bucky never ships or uses the dSYM — it just
+        # dlopens the binary inside the framework — so dropping it
+        # produces a functionally complete xcframework for our use case.
+        # Upstream itself omits -debug-symbols on the static-xcframework
+        # path in build-xcframework.sh, which is what we are mirroring.
         run: |
           mkdir -p package/build-apple
           xcodebuild -create-xcframework \
             -framework whisper.cpp/build-macos/framework/whisper.framework \
-            -debug-symbols whisper.cpp/build-macos/dSYMs/whisper.dSYM \
             -output package/build-apple/whisper.xcframework
       - name: Pack artifact
         # zip --symlinks preserves the macOS framework's versioned
