@@ -486,6 +486,112 @@ jobs:
           name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
           archive: false
 
+  # ─── macOS ──────────────────────────────────────────────────────────────
+  # Universal (arm64 + x86_64) xcframework with Metal + CoreML embedded.
+  # whisper.cpp upstream ships its own xcframework, but theirs is a 7-slice
+  # bundle (iOS device+sim, macOS universal, visionOS device+sim, tvOS
+  # device+sim) that bucky never uses past the macOS slice. We run their
+  # build-xcframework.sh as-is to inherit upstream improvements, then call
+  # xcodebuild -create-xcframework again with only the macOS slice so the
+  # download bucky pulls is small. The output path the zip preserves
+  # (build-apple/whisper.xcframework/macos-arm64_x86_64/whisper.framework
+  # /Versions/A/whisper) is what bucky's extractDarwinXCFramework expects.
+
+  build-darwin-xcframework:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: macos-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Build full xcframework (upstream script)
+        working-directory: whisper.cpp
+        run: |
+          ./build-xcframework.sh
+      - name: Repackage as macOS-only xcframework
+        run: |
+          mkdir -p package/build-apple
+          xcodebuild -create-xcframework \
+            -framework whisper.cpp/build-macos/framework/whisper.framework \
+            -debug-symbols whisper.cpp/build-macos/dSYMs/whisper.dSYM \
+            -output package/build-apple/whisper.xcframework
+      - name: Pack artifact
+        # zip --symlinks preserves the macOS framework's versioned
+        # symlinks (Versions/Current -> A, etc.). Without it the unzipped
+        # framework is invalid and dlopen fails.
+        run: |
+          cd package
+          zip --symlinks -r ../whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-darwin-metal-universal.zip build-apple/whisper.xcframework
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-darwin-metal-universal.zip
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-darwin-metal-universal.zip
+          archive: false
+
+  # ─── Windows ────────────────────────────────────────────────────────────
+  # CPU-only x64 DLLs. We do NOT pull SDL2 since we drop examples; the zip
+  # contains only the shared libraries bucky loads at runtime. Build flags
+  # mirror the Linux CPU job (GGML_CPU_ALL_VARIANTS=ON for runtime ISA
+  # dispatch, GGML_BACKEND_DL=ON for dlopen-style backend loading).
+
+  build-windows-cpu-x64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
+    runs-on: windows-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+      - name: Build x64
+        working-directory: whisper.cpp
+        run: |
+          cmake -S . -B build -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=ON `
+            -DWHISPER_BUILD_TESTS=OFF `
+            -DWHISPER_BUILD_EXAMPLES=OFF `
+            -DWHISPER_BUILD_SERVER=OFF `
+            -DGGML_NATIVE=OFF `
+            -DGGML_BMI2=OFF `
+            -DGGML_CPU_ALL_VARIANTS=ON `
+            -DGGML_BACKEND_DL=ON
+          cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+          cmake --install build --prefix dist --config Release
+      - name: Pack artifact
+        # Stage the DLLs under whisper-<TAG>/ inside the zip to match the
+        # Linux tarball layout (top-level versioned directory). bucky's
+        # extractWindowsZip flattens regardless, but a versioned root makes
+        # the zip easy to inspect by hand.
+        shell: pwsh
+        working-directory: whisper.cpp
+        run: |
+          $tag = "${{ needs.check-version.outputs.whisper-tag }}"
+          New-Item -ItemType Directory -Force -Path "package/whisper-$tag" | Out-Null
+          Copy-Item dist/bin/*.dll "package/whisper-$tag/"
+          Compress-Archive -Path "package/whisper-$tag" -DestinationPath "../whisper-$tag-bin-windows-cpu-x64.zip"
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
+          archive: false
+
   # ─── Release ────────────────────────────────────────────────────────────
 
   release:
@@ -497,6 +603,8 @@ jobs:
       - build-cuda-arm64
       - build-vulkan-amd64
       - build-vulkan-arm64
+      - build-darwin-xcframework
+      - build-windows-cpu-x64
     if: ${{ github.event_name != 'pull_request' && needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag }}
     runs-on: ubuntu-latest
     permissions:
@@ -546,16 +654,30 @@ jobs:
           artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
           destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-vulkan-arm64.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Darwin xcframework artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-darwin-metal-universal.zip
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-darwin-metal-universal.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Windows CPU x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ needs.check-version.outputs.whisper-tag }}
           name: ${{ needs.check-version.outputs.whisper-tag }}
-          artifacts: "*.tar.gz"
+          artifacts: "*.tar.gz,*.zip"
           allowUpdates: true
           replacesArtifacts: true
           body: |
-            Prebuilt whisper.cpp ${{ needs.check-version.outputs.whisper-tag }} libraries for Linux.
+            Prebuilt whisper.cpp ${{ needs.check-version.outputs.whisper-tag }} libraries for Linux, macOS, and Windows.
 
             Used by [bucky](https://github.com/ardanlabs/bucky)'s `bucky install` command.
 

@@ -2,11 +2,14 @@
 
 [![Build](https://github.com/ardanlabs/bucky-builder/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/ardanlabs/bucky-builder/actions/workflows/build.yml)
 
-## Prebuilt binaries for CPU, CUDA, and Vulkan on Linux
+## Prebuilt whisper.cpp binaries for Linux, macOS, and Windows
 
 This repo builds binary versions of `whisper.cpp` shared libraries for
-architectures that are not already part of the normal upstream builds, such
-as Linux with CUDA or Vulkan support, and Linux arm64 CPU.
+every platform [bucky](https://github.com/ardanlabs/bucky) supports, so
+`bucky install` has a single source of truth and a single release cadence.
+That includes architectures upstream does not ship at all (Linux CUDA /
+Vulkan / arm64 CPU) and the macOS / Windows variants we want pinned to
+the same tag.
 
 New releases are automatically built for the latest release version of
 `whisper.cpp`. The latest release is checked once per hour.
@@ -52,19 +55,35 @@ Currently supported CPU build configurations:
 | -------- | ------------ | ------------------------------------------- |
 | amd64    | Ubuntu 24.04 | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
 | arm64    | Ubuntu 22.04 |                                             |
+| x64      | Windows      | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
+
+## macOS
+
+Currently supported macOS build configurations:
+
+| CPU arch         | OS              | Notes                                     |
+| ---------------- | --------------- | ----------------------------------------- |
+| arm64 + x86_64   | macOS 13.3+     | Universal xcframework; Metal + CoreML     |
+
+Built on `macos-latest` by running upstream's `build-xcframework.sh` and
+then repackaging with only the macOS slice via `xcodebuild
+-create-xcframework`, so the artifact is small even though the build is
+the canonical upstream one.
 
 ## Artifacts
 
 For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
 
-| Filename                                        |
-| ----------------------------------------------- |
-| `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`      |
-| `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`    |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`     |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`   |
-| `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz`   |
-| `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
+| Filename                                              |
+| ----------------------------------------------------- |
+| `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`            |
+| `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`          |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`           |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`         |
+| `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz`         |
+| `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz`       |
+| `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`       |
+| `whisper-vX.Y.Z-bin-windows-cpu-x64.zip`              |
 
 All tarballs unpack to `whisper-vX.Y.Z/` containing `libwhisper.so`,
 `libggml.so`, `libggml-base.so`, `libggml-cpu.so`, the per-microarch CPU
