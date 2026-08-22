@@ -11,9 +11,9 @@ on:
         type: boolean
         default: false
   schedule:
-    # Hourly cron — checks for a new whisper.cpp release tag and only triggers
-    # downstream builds when one is found. Mirrors hybridgroup/llama-cpp-builder.
-    - cron: '15 * * * *'
+    # Check twice daily for a new whisper.cpp release tag and only trigger
+    # downstream builds when one is found.
+    - cron: '15 */12 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +25,7 @@ concurrency:
 jobs:
   # check-version compares the latest upstream whisper.cpp release tag against
   # the bucky-builder repo's own latest release tag. All build jobs gate on
-  # whisper-tag != current-tag so the hourly cron is a no-op until a new
+  # whisper-tag != current-tag so the scheduled check is a no-op until a new
   # whisper.cpp version ships.
   check-version:
     runs-on: ubuntu-latest
@@ -67,9 +67,9 @@ jobs:
           echo "bucky-builder latest: ${{ steps.currenttag.outputs.name }}"
 
   # ─── CPU ────────────────────────────────────────────────────────────────
-  # Unlike llama.cpp, whisper.cpp publishes NO Linux release artifacts at
-  # all, so bucky-builder is the source of truth for both amd64 and arm64
-  # CPU bundles. (yzma can lean on upstream for amd64 CPU; we cannot.)
+  # bucky-builder packages library-only CPU bundles with the same naming and
+  # release cadence as its accelerated Linux artifacts. Upstream also ships
+  # CPU archives, but they include executables bucky does not use.
 
   build-cpu-amd64:
     needs: check-version
@@ -550,10 +550,11 @@ jobs:
           archive: false
 
   # ─── Windows ────────────────────────────────────────────────────────────
-  # CPU-only x64 DLLs. We do NOT pull SDL2 since we drop examples; the zip
-  # contains only the shared libraries bucky loads at runtime. Build flags
-  # mirror the Linux CPU job (GGML_CPU_ALL_VARIANTS=ON for runtime ISA
-  # dispatch, GGML_BACKEND_DL=ON for dlopen-style backend loading).
+  # x64 CPU and CUDA DLLs. We do NOT pull SDL2 since we drop examples. Build
+  # flags mirror Linux (GGML_CPU_ALL_VARIANTS=ON for runtime ISA dispatch,
+  # GGML_BACKEND_DL=ON for dlopen-style backend loading). The CUDA archive
+  # includes the CUDA runtime DLLs so consumers only need an NVIDIA driver,
+  # not a locally installed CUDA toolkit.
 
   build-windows-cpu-x64:
     needs: check-version
@@ -605,6 +606,91 @@ jobs:
           name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
           archive: false
 
+  build-windows-cuda-x64:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: windows-2022
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install Ninja and unzip
+        run: choco install ninja unzip -y
+      - name: Install CUDA Toolkit 12.4
+        shell: pwsh
+        run: |
+          $cudaVersion = "12.4"
+          $cudaDir = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+          $cudaDownload = "https://developer.download.nvidia.com/compute/cuda/redist"
+          $components = @{
+            cuda_cudart              = "12.4.127"
+            cuda_nvcc                = "12.4.131"
+            cuda_nvrtc               = "12.4.127"
+            libcublas                = "12.4.5.8"
+            cuda_nvtx                = "12.4.127"
+            cuda_profiler_api        = "12.4.127"
+            visual_studio_integration = "12.4.127"
+            cuda_nvprof              = "12.4.127"
+            cuda_cccl                = "12.4.127"
+          }
+
+          New-Item -ItemType Directory -Force -Path $cudaDir | Out-Null
+          foreach ($component in $components.GetEnumerator()) {
+            $archive = "$($component.Key)-windows-x86_64-$($component.Value)-archive"
+            curl.exe -L --fail --retry 3 -o "$archive.zip" "$cudaDownload/$($component.Key)/windows-x86_64/$archive.zip"
+            unzip -q "$archive.zip" -d $cudaDir
+            Copy-Item "$cudaDir\$archive\*" $cudaDir -Recurse -Force
+          }
+
+          $buildCustomizations = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\BuildCustomizations"
+          $integration = "$cudaDir\visual_studio_integration-windows-x86_64-$($components.visual_studio_integration)-archive\visual_studio_integration\MSBuildExtensions\*"
+          Copy-Item $integration $buildCustomizations -Recurse -Force
+
+          "$cudaDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "CUDA_PATH=$cudaDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CUDA_PATH_V12_4=$cudaDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+      - name: Build x64 CUDA 12.4
+        shell: cmd
+        working-directory: whisper.cpp
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -S . -B build -G "Ninja Multi-Config" ^
+            -DBUILD_SHARED_LIBS=ON ^
+            -DWHISPER_BUILD_TESTS=OFF ^
+            -DWHISPER_BUILD_EXAMPLES=OFF ^
+            -DWHISPER_BUILD_SERVER=OFF ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_BMI2=OFF ^
+            -DGGML_CPU_ALL_VARIANTS=ON ^
+            -DGGML_CUDA=ON ^
+            -DGGML_BACKEND_DL=ON ^
+            -DCMAKE_CUDA_ARCHITECTURES="86;89"
+          cmake --build build --config Release -j %NUMBER_OF_PROCESSORS%
+      - name: Pack artifact
+        shell: pwsh
+        working-directory: whisper.cpp
+        run: |
+          $tag = "${{ needs.check-version.outputs.whisper-tag }}"
+          $package = "package/whisper-$tag"
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item build/bin/Release/*.dll $package
+          Get-ChildItem "$env:CUDA_PATH\bin" -Filter "*.dll" | Copy-Item -Destination $package
+          Compress-Archive -Path $package -DestinationPath "../whisper-$tag-bin-windows-cuda-x64.zip"
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cuda-x64.zip
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cuda-x64.zip
+          archive: false
+
   # ─── Release ────────────────────────────────────────────────────────────
 
   release:
@@ -618,6 +704,7 @@ jobs:
       - build-vulkan-arm64
       - build-darwin-xcframework
       - build-windows-cpu-x64
+      - build-windows-cuda-x64
     if: ${{ github.event_name != 'pull_request' && (needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force) }}
     runs-on: ubuntu-latest
     permissions:
@@ -680,6 +767,13 @@ jobs:
           run-id: ${{ github.run_id }}
           artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
           destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cpu-x64.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download Windows CUDA x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cuda-x64.zip
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cuda-x64.zip
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release
         uses: ncipollo/release-action@v1

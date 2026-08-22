@@ -7,12 +7,12 @@
 This repo builds binary versions of `whisper.cpp` shared libraries for
 every platform [bucky](https://github.com/ardanlabs/bucky) supports, so
 `bucky install` has a single source of truth and a single release cadence.
-That includes architectures upstream does not ship at all (Linux CUDA /
-Vulkan / arm64 CPU) and the macOS / Windows variants we want pinned to
-the same tag.
+That includes accelerated Linux configurations upstream does not ship
+(CUDA / Vulkan) and the macOS / Windows variants we want pinned to the
+same tag.
 
 New releases are automatically built for the latest release version of
-`whisper.cpp`. The latest release is checked once per hour.
+`whisper.cpp`. The latest release is checked twice daily.
 
 Used by [bucky](https://github.com/ardanlabs/bucky)'s `bucky install`
 command. bucky lets you write Go applications that directly integrate the
@@ -29,6 +29,7 @@ Currently supported CUDA build configurations:
 | -------- | ------------ | ------ | ------------------- |
 | amd64    | Ubuntu 24.04 | 12.9.1 | 86, 89              |
 | arm64    | Ubuntu 22.04 | 12.9.1 | 87                  |
+| x64      | Windows      | 12.4   | 86, 89              |
 
 Compute architectures `86` and `89` are those used by consumer video cards
 (RTX 3090 / 4090).
@@ -84,6 +85,7 @@ For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
 | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz`       |
 | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`       |
 | `whisper-vX.Y.Z-bin-windows-cpu-x64.zip`              |
+| `whisper-vX.Y.Z-bin-windows-cuda-x64.zip`             |
 
 All tarballs unpack to `whisper-vX.Y.Z/` containing `libwhisper.so`,
 `libggml.so`, `libggml-base.so`, `libggml-cpu.so`, the per-microarch CPU
