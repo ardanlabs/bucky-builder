@@ -107,10 +107,24 @@ VERSION=$(curl -s https://ardanlabs.github.io/bucky-builder/version.json | jq -r
 bucky reads this instead of the GitHub releases API to avoid the
 unauthenticated rate limit.
 
+Each release also publishes an archive and installed-file digest manifest on
+[GitHub Pages](https://ardanlabs.github.io/bucky-builder/digests/) and as two
+release assets. To fetch and verify the exact manifest bytes:
+
+```sh
+curl -fLO "https://ardanlabs.github.io/bucky-builder/digests/${VERSION}.json"
+curl -fLO "https://ardanlabs.github.io/bucky-builder/digests/${VERSION}.json.sha256"
+sha256sum -c "${VERSION}.json.sha256" # use: shasum -a 256 -c ... on macOS
+printf '%s@sha256:%s\n' "$VERSION" "$(sha256sum "${VERSION}.json" | cut -d' ' -f1)"
+```
+
+The resulting `<tag>@sha256:<digest>` pin is also printed in the release job
+summary and release notes.
+
 ## Manually rebuilding a single tag
 
 ```
-gh workflow run Build --repo ardanlabs/bucky-builder
+gh workflow run Build --repo ardanlabs/bucky-builder -f force=true
 ```
 
 Or via the Actions tab → Build → Run workflow.
