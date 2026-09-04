@@ -72,7 +72,7 @@ jobs:
         run: |
           echo "whisper-tag=${{ steps.whispertag.outputs.name }}" >> "$GITHUB_OUTPUT"
           echo "current-tag=${{ steps.currenttag.outputs.name }}" >> "$GITHUB_OUTPUT"
-          echo "generated=$(git -C whisper.cpp show -s --format=%cI '${{ steps.whispertag.outputs.name }}')" >> "$GITHUB_OUTPUT"
+          echo "generated=$(git -C whisper.cpp log -1 --format=%cI '${{ steps.whispertag.outputs.name }}^{commit}')" >> "$GITHUB_OUTPUT"
           echo "Upstream whisper.cpp: ${{ steps.whispertag.outputs.name }}"
           echo "bucky-builder latest: ${{ steps.currenttag.outputs.name }}"
 
