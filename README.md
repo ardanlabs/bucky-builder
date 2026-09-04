@@ -98,6 +98,39 @@ backend MODULEs are installed alongside the core libs via
 `$ORIGIN`, so the libraries are self-contained regardless of where bucky
 drops them.
 
+## Integrity manifests
+
+The Build workflow automatically creates an integrity manifest after it builds
+all supported platform bundles. Developers do not need to calculate or add
+digests manually for new releases.
+
+Each release publishes these files:
+
+| Filename                    | Contents                                                       |
+| --------------------------- | -------------------------------------------------------------- |
+| `digests/vX.Y.Z.json`       | SHA-256 values for every archive and its installed files/links |
+| `digests/vX.Y.Z.json.sha256` | SHA-256 of the exact manifest bytes                            |
+
+The SHA-256 of the manifest is the version-level digest used in a Bucky pin:
+
+```text
+vX.Y.Z@sha256:<manifest-digest>
+```
+
+That single pin works for every supported platform. Bucky authenticates the
+manifest with the supplied digest, selects the appropriate CPU, CUDA, Vulkan,
+Metal, or Windows bundle, and verifies that archive against its entry in the
+authenticated manifest before extraction.
+
+For every new whisper.cpp release, the workflow:
+
+1. Builds all supported bundles.
+2. Generates the manifest and its checksum.
+3. Uploads both files as GitHub release assets.
+4. Commits both files under `digests/` on `main`.
+5. Publishes the `digests/` directory through GitHub Pages.
+6. Prints the complete Bucky pin in the release notes and workflow summary.
+
 ## How to check the latest version
 
 ```
@@ -107,13 +140,42 @@ VERSION=$(curl -s https://ardanlabs.github.io/bucky-builder/version.json | jq -r
 bucky reads this instead of the GitHub releases API to avoid the
 unauthenticated rate limit.
 
-## Manually rebuilding a single tag
+Integrity manifests are available as release assets and at the GitHub Pages
+URLs `https://ardanlabs.github.io/bucky-builder/digests/<tag>.json` and
+`https://ardanlabs.github.io/bucky-builder/digests/<tag>.json.sha256`. To fetch
+and verify the exact manifest bytes:
+
+```sh
+curl -fLO "https://ardanlabs.github.io/bucky-builder/digests/${VERSION}.json"
+curl -fLO "https://ardanlabs.github.io/bucky-builder/digests/${VERSION}.json.sha256"
+if command -v sha256sum >/dev/null; then
+    sha256sum -c "${VERSION}.json.sha256"
+else
+    shasum -a 256 -c "${VERSION}.json.sha256"
+fi
+DIGEST=$(awk '{print $1}' "${VERSION}.json.sha256")
+printf '%s@sha256:%s\n' "$VERSION" "$DIGEST"
+```
+
+The resulting `<tag>@sha256:<digest>` pin is also printed in the release job
+summary and release notes.
+
+## Rebuilding the latest tag
+
+The Build workflow always selects the latest upstream whisper.cpp tag. Use the
+`force` input to rebuild it when bucky-builder already has a release with that
+tag:
 
 ```
-gh workflow run Build --repo ardanlabs/bucky-builder
+gh workflow run Build --repo ardanlabs/bucky-builder -f force=true
 ```
 
 Or via the Actions tab → Build → Run workflow.
+
+The checked-in `v1.9.3` manifest is a one-time backfill for bundles that were
+published before manifest generation was added. After these changes reach
+`main`, run the forced build once to attach the manifest files to the existing
+release, update its release notes, and publish the files through GitHub Pages.
 
 ## Adding a new build target
 

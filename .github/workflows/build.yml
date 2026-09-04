@@ -23,6 +23,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  test-digest-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Test digest manifest generation
+        run: .github/scripts/tests/test-build-digests.sh
+
   # check-version compares the latest upstream whisper.cpp release tag against
   # the bucky-builder repo's own latest release tag. All build jobs gate on
   # whisper-tag != current-tag so the scheduled check is a no-op until a new
@@ -32,6 +40,7 @@ jobs:
     outputs:
       whisper-tag: ${{ steps.tags.outputs.whisper-tag }}
       current-tag: ${{ steps.tags.outputs.current-tag }}
+      generated: ${{ steps.tags.outputs.generated }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v6
@@ -63,6 +72,7 @@ jobs:
         run: |
           echo "whisper-tag=${{ steps.whispertag.outputs.name }}" >> "$GITHUB_OUTPUT"
           echo "current-tag=${{ steps.currenttag.outputs.name }}" >> "$GITHUB_OUTPUT"
+          echo "generated=$(git -C whisper.cpp log -1 --format=%cI '${{ steps.whispertag.outputs.name }}^{commit}')" >> "$GITHUB_OUTPUT"
           echo "Upstream whisper.cpp: ${{ steps.whispertag.outputs.name }}"
           echo "bucky-builder latest: ${{ steps.currenttag.outputs.name }}"
 
@@ -775,18 +785,53 @@ jobs:
           artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cuda-x64.zip
           destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-windows-cuda-x64.zip
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build digest manifest
+        id: digests
+        env:
+          TAG: ${{ needs.check-version.outputs.whisper-tag }}
+          GENERATED: ${{ needs.check-version.outputs.generated }}
+        run: |
+          pin=$(.github/scripts/build-digests.py "$TAG" . digests --generated "$GENERATED")
+          echo "pin=$pin" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release digest manifest"
+            echo '```'
+            echo "$pin"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ needs.check-version.outputs.whisper-tag }}
           name: ${{ needs.check-version.outputs.whisper-tag }}
-          artifacts: "*.tar.gz,*.zip"
+          artifacts: "*.tar.gz,*.zip,digests/*.json,digests/*.json.sha256"
           allowUpdates: true
           replacesArtifacts: true
           body: |
             Prebuilt whisper.cpp ${{ needs.check-version.outputs.whisper-tag }} libraries for Linux, macOS, and Windows.
 
             Used by [bucky](https://github.com/ardanlabs/bucky)'s `bucky install` command.
+
+            Digest manifest pin: `${{ steps.digests.outputs.pin }}`
+      - name: Commit digest manifest
+        env:
+          TAG: ${{ needs.check-version.outputs.whisper-tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "digests/${TAG}.json" "digests/${TAG}.json.sha256"
+          if git diff --cached --quiet -- digests; then
+            echo "Digest files for ${TAG} are already committed"
+            exit 0
+          fi
+          git commit -m "digests: publish ${TAG} manifest"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            git pull --rebase origin main
+          done
+          exit 1
 
   publish-version:
     needs:
