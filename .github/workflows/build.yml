@@ -209,7 +209,7 @@ jobs:
 
   build-cuda-amd64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-latest
     container:
       image: nvidia/cuda:12.9.1-devel-ubuntu24.04
@@ -247,7 +247,7 @@ jobs:
             -DCMAKE_INSTALL_RPATH='$ORIGIN' \
             -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
             -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
-            -DCMAKE_CUDA_ARCHITECTURES="86;89" \
+            -DCMAKE_CUDA_ARCHITECTURES="75-virtual;80-virtual;86;89" \
             -DCMAKE_DISABLE_FIND_PACKAGE_NCCL=ON \
             -DWHISPER_BUILD_TESTS=OFF \
             -DWHISPER_BUILD_EXAMPLES=OFF \
@@ -273,7 +273,7 @@ jobs:
 
   build-cuda-arm64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: ubuntu-22.04-arm
     container:
       image: nvidia/cuda:12.9.1-devel-ubuntu22.04
@@ -319,7 +319,7 @@ jobs:
             -DCMAKE_INSTALL_RPATH='$ORIGIN' \
             -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
             -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
-            -DCMAKE_CUDA_ARCHITECTURES="87" \
+            -DCMAKE_CUDA_ARCHITECTURES="87;121" \
             -DCMAKE_DISABLE_FIND_PACKAGE_NCCL=ON \
             -DWHISPER_BUILD_TESTS=OFF \
             -DWHISPER_BUILD_EXAMPLES=OFF \
@@ -618,7 +618,7 @@ jobs:
 
   build-windows-cuda-x64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
     runs-on: windows-2022
     steps:
       - name: Check out the repo
@@ -682,7 +682,7 @@ jobs:
             -DGGML_CPU_ALL_VARIANTS=ON ^
             -DGGML_CUDA=ON ^
             -DGGML_BACKEND_DL=ON ^
-            -DCMAKE_CUDA_ARCHITECTURES="86;89"
+            -DCMAKE_CUDA_ARCHITECTURES="75-virtual;80-virtual;86;89"
           cmake --build build --config Release -j %NUMBER_OF_PROCESSORS%
       - name: Pack artifact
         shell: pwsh

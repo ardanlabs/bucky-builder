@@ -25,16 +25,19 @@ plays for [yzma](https://github.com/hybridgroup/yzma).
 
 Currently supported CUDA build configurations:
 
-| CPU arch | OS           | CUDA   | Nvidia Compute arch |
-| -------- | ------------ | ------ | ------------------- |
-| amd64    | Ubuntu 24.04 | 12.9.1 | 86, 89              |
-| arm64    | Ubuntu 22.04 | 12.9.1 | 87                  |
-| x64      | Windows      | 12.4   | 86, 89              |
+| CPU arch | OS           | CUDA   | Nvidia Compute arch     |
+| -------- | ------------ | ------ | ----------------------- |
+| amd64    | Ubuntu 24.04 | 12.9.1 | 75 PTX, 80 PTX, 86, 89 |
+| arm64    | Ubuntu 22.04 | 12.9.1 | 87, 121                 |
+| x64      | Windows      | 12.4   | 75 PTX, 80 PTX, 86, 89 |
 
-Compute architectures `86` and `89` are those used by consumer video cards
-(RTX 3090 / 4090).
+Compute architectures `75` and `80` cover Turing and first-generation Ampere
+GPUs (including RTX 20-series, GTX 16-series, T4, A100, and A30) via
+driver-compiled PTX. Compute architectures `86` and `89` are built natively
+for consumer video cards (RTX 3090 / 4090).
 
-Compute architecture `87` is used by Jetson Orin and Jetson AGX.
+Compute architecture `87` is used by Jetson Orin and Jetson AGX. Compute
+architecture `121` is built natively for DGX Spark.
 
 ## Vulkan
 
