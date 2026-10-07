@@ -8,7 +8,7 @@
             "libwhisper.dylib": "c38832e75be90515bd7ff882efe277b07c58474368fb5df1cbd9b05269a3dbe0"
           },
           "links": {},
-          "sha256": "2bcdad1f30ab85b97959f4ebcbe2b62d5af560fb5113f1e373fe1effaa1e70aa"
+          "sha256": "159a2112f67ce8681e0a4756fea0ae27db0fe3146361821973837ea5cbfeabd5"
         },
         "whisper-v1.9.5-bin-ubuntu-cpu-arm64.tar.gz": {
           "files": {
@@ -43,7 +43,7 @@
             "libwhisper.so": "libwhisper.so.1",
             "libwhisper.so.1": "libwhisper.so.1.9.5"
           },
-          "sha256": "7d266b9a0cca92b3397edcd7b60e7f0a2bcdb2a02c1fee351dd478447a130934"
+          "sha256": "cf3d02cc75632feb0bf164a6ef65fdda862f191bd2df3b79fe2b5b5c61bc6b61"
         },
         "whisper-v1.9.5-bin-ubuntu-cpu-x64.tar.gz": {
           "files": {
@@ -84,7 +84,85 @@
             "libwhisper.so": "libwhisper.so.1",
             "libwhisper.so.1": "libwhisper.so.1.9.5"
           },
-          "sha256": "32adb7236af1604ff95eb21420ad2500d3369fe9f5d15a2d10ff04b4a3a01d38"
+          "sha256": "a6cdf5e41cc03507f611f49dd4cff5a5aa2351c6e47fe63c74e644ae193a71fe"
+        },
+        "whisper-v1.9.5-bin-ubuntu-cuda-13-arm64.tar.gz": {
+          "files": {
+            "cmake/ggml/ggml-config-version.cmake": "9790cec43c971378c5df4b93e96efe9cb57f35edbcce6361a18c7b1e31c3d306",
+            "cmake/ggml/ggml-config.cmake": "b3a4be702316af21d6e3d3581ba655dda6ce4726e7060f8549f969c1d7b9c780",
+            "cmake/parakeet/parakeet-config-version.cmake": "6a42dcafc6c6646c85cdc9022695140d564e6e75a3c913b558f8b967f321e6f5",
+            "cmake/parakeet/parakeet-config.cmake": "6772203df217e96407828b2567f49387ca71951c70abfe24bc8f6453f5656ea8",
+            "cmake/whisper/whisper-config-version.cmake": "6a42dcafc6c6646c85cdc9022695140d564e6e75a3c913b558f8b967f321e6f5",
+            "cmake/whisper/whisper-config.cmake": "55e3c1f07afd485a4bb38b12098c37fe9eecae57ac9b4f177a81fb55f8b8707e",
+            "libggml-base.so.0.26.0": "fd33c3a38b6295fabf570646aff92c912185de51f276353956875f5470d21572",
+            "libggml-cpu-armv8.0_1.so": "7d534364a0aebf0952a9e93c87e6fb920e5c51334913f7a6ea4715f54723bec0",
+            "libggml-cpu-armv8.2_1.so": "fe5c60a96891ff5122bfae4494c5dfe89db885017e2df003b52213c0489412a0",
+            "libggml-cpu-armv8.2_2.so": "ef1620c401e9268903dae3848e7ed1f94749555acdad20ec077a8a14eadd71cd",
+            "libggml-cpu-armv8.2_3.so": "db9ed3996c997a6d1ec31fa55ceec32a5f14550af50e8cf06ad4e059f115d8fe",
+            "libggml-cpu-armv8.6_1.so": "2e0a5ecfcc48ef5f603faa4204b5ca746cb764f57610db05dd0725f98b54f2e2",
+            "libggml-cpu-armv8.6_2.so": "fe785f817b3eda178023eb60493bbbfee07de9cbf309ed997fa5009ab79e79fb",
+            "libggml-cpu-armv9.2_1.so": "aab7c271d39a96e00fab0c574b9691d41bf2b5674e4d6f27b902d9226dbab6f3",
+            "libggml-cpu-armv9.2_2.so": "80df09a3b2413bac02f492e622a2a3ec324cde3937194d3b044a0e5a6005c06f",
+            "libggml-cuda.so": "272f11f09f20d6545f229157bbd452b2974c715498327e701d9ce5fa6ccfd445",
+            "libggml.so.0.26.0": "a4f3667c6c7ba2b11408f4e51d30d67f48cff3661169987ebcc9311c97f24468",
+            "libparakeet.so.1.9.5": "eb0b04f43b307993f75f97de94e4923b20036082206db676c1af2be2a18af598",
+            "libwhisper.so.1.9.5": "32d63da54fe1cf7806d9b1d1b97c8e7e0c49f90b12b00a841e56236d792dfbf0",
+            "pkgconfig/parakeet.pc": "81608815907a264270431b9ce29b3d33f433b4f8d0ad014bb48b8bc4ab9e54f1",
+            "pkgconfig/whisper.pc": "10e26b08dff5c780c633c7ee22be82909b521389265fe6434cbbad2153a75c9c"
+          },
+          "links": {
+            "libggml-base.so": "libggml-base.so.0",
+            "libggml-base.so.0": "libggml-base.so.0.26.0",
+            "libggml.so": "libggml.so.0",
+            "libggml.so.0": "libggml.so.0.26.0",
+            "libparakeet.so": "libparakeet.so.1",
+            "libparakeet.so.1": "libparakeet.so.1.9.5",
+            "libwhisper.so": "libwhisper.so.1",
+            "libwhisper.so.1": "libwhisper.so.1.9.5"
+          },
+          "sha256": "b979ccbd35b664c7983a908b34e61188d32663bde2a64be21b38a1b7f56fe46a"
+        },
+        "whisper-v1.9.5-bin-ubuntu-cuda-13-x64.tar.gz": {
+          "files": {
+            "cmake/ggml/ggml-config-version.cmake": "9790cec43c971378c5df4b93e96efe9cb57f35edbcce6361a18c7b1e31c3d306",
+            "cmake/ggml/ggml-config.cmake": "8abba9ef2736bd1e78211a2c8e498e54d76131c2cff44d5ace4e24e8c601fc99",
+            "cmake/parakeet/parakeet-config-version.cmake": "6a42dcafc6c6646c85cdc9022695140d564e6e75a3c913b558f8b967f321e6f5",
+            "cmake/parakeet/parakeet-config.cmake": "6772203df217e96407828b2567f49387ca71951c70abfe24bc8f6453f5656ea8",
+            "cmake/whisper/whisper-config-version.cmake": "6a42dcafc6c6646c85cdc9022695140d564e6e75a3c913b558f8b967f321e6f5",
+            "cmake/whisper/whisper-config.cmake": "55e3c1f07afd485a4bb38b12098c37fe9eecae57ac9b4f177a81fb55f8b8707e",
+            "libggml-base.so.0.26.0": "d1f146d64815d96ccebb91d4e8b216db0d9f8a9ec3e3e35701b390df1cc538c7",
+            "libggml-cpu-alderlake.so": "3363c48b27247af8bbe0b7abddf663f5b50ba4680658d600facd864e8fbd80f2",
+            "libggml-cpu-cannonlake.so": "90212cdf82d12effdec9f18aed9722e8936bbd6045457cef79c5927697e6db60",
+            "libggml-cpu-cascadelake.so": "e8d13661a484207cdab8625381d865d27809d097dad019249dbd2bbef9e4cb41",
+            "libggml-cpu-cooperlake.so": "bc61a9af86e57754b4d8415cc8c6c898f67ec0452dc8181015f87cf1518b66e6",
+            "libggml-cpu-haswell.so": "5cc70deb12877fde242b8c2c7a288c885816b2985b4e0dc15412e39109c2b113",
+            "libggml-cpu-icelake.so": "686fd102be553792ece37a68c9498b26a48da0bb9a66bd64a19fc4ae44b0e62f",
+            "libggml-cpu-ivybridge.so": "660cb8cc1e04ede34f3fc462757b97aac20f21485ee581c65b7e05de4c739bd0",
+            "libggml-cpu-piledriver.so": "c20f0c12ba1bfdc2ff98d3c01311aea092cc1c337181be5295e3b9ebe6c79e90",
+            "libggml-cpu-sandybridge.so": "e5784fbaf8216f006f73bd396b803300e6ee8b18175b70fd3afc401bee7bc499",
+            "libggml-cpu-sapphirerapids.so": "87fd9072b0e7d202ba5ed4a3f65091e8af82621cfb49ec4f76322c3fbc00bbdf",
+            "libggml-cpu-skylakex.so": "e7793ae3a219618f0b62c28ea05df587beee9c1ad8283b6be3f5650029357c4f",
+            "libggml-cpu-sse42.so": "6253d206f758d075ede1832f72ca8a415520532d74a7c426f9def62682fc6b7e",
+            "libggml-cpu-x64.so": "010ac52a406167c891d5ab634ddb37977f1caf74943f38a9a695cc203775d3fb",
+            "libggml-cpu-zen4.so": "d3df5b3e385bfa6e79dd6be035d19c3e0b1272b569b2a7a5eb09c9a4ed087a27",
+            "libggml-cuda.so": "d6303a66f76c5d5055de9b7e344ca9a71e8c7da13741b4e0dc39e3913bae3773",
+            "libggml.so.0.26.0": "efee0e6123538d319dcd8766c7b25bdda96bf835728c7ce66afd16110e075641",
+            "libparakeet.so.1.9.5": "69cb64beb67d2b58cdde82fbff8698c66bc9478ed845c041f0faec013259e9db",
+            "libwhisper.so.1.9.5": "927fc386893e30370f39725e49830ca4f7afad60d93075b913486c6470dac9db",
+            "pkgconfig/parakeet.pc": "81608815907a264270431b9ce29b3d33f433b4f8d0ad014bb48b8bc4ab9e54f1",
+            "pkgconfig/whisper.pc": "10e26b08dff5c780c633c7ee22be82909b521389265fe6434cbbad2153a75c9c"
+          },
+          "links": {
+            "libggml-base.so": "libggml-base.so.0",
+            "libggml-base.so.0": "libggml-base.so.0.26.0",
+            "libggml.so": "libggml.so.0",
+            "libggml.so.0": "libggml.so.0.26.0",
+            "libparakeet.so": "libparakeet.so.1",
+            "libparakeet.so.1": "libparakeet.so.1.9.5",
+            "libwhisper.so": "libwhisper.so.1",
+            "libwhisper.so.1": "libwhisper.so.1.9.5"
+          },
+          "sha256": "df4765f50112c0dbec705f45aef09af32d26e70bce822097b1b2a0ecfadab87a"
         },
         "whisper-v1.9.5-bin-ubuntu-cuda-arm64.tar.gz": {
           "files": {
@@ -103,7 +181,7 @@
             "libggml-cpu-armv8.6_2.so": "fe785f817b3eda178023eb60493bbbfee07de9cbf309ed997fa5009ab79e79fb",
             "libggml-cpu-armv9.2_1.so": "aab7c271d39a96e00fab0c574b9691d41bf2b5674e4d6f27b902d9226dbab6f3",
             "libggml-cpu-armv9.2_2.so": "80df09a3b2413bac02f492e622a2a3ec324cde3937194d3b044a0e5a6005c06f",
-            "libggml-cuda.so": "946a1fdd4b1d015aa013a294988e6a0c6344e1055b0e57b89542068f8b1a1079",
+            "libggml-cuda.so": "c1b38e5f4ebd23eecb256b42b14d4529f3918881983695fda32dabf4ca805e9a",
             "libggml.so.0.26.0": "a4f3667c6c7ba2b11408f4e51d30d67f48cff3661169987ebcc9311c97f24468",
             "libparakeet.so.1.9.5": "eb0b04f43b307993f75f97de94e4923b20036082206db676c1af2be2a18af598",
             "libwhisper.so.1.9.5": "32d63da54fe1cf7806d9b1d1b97c8e7e0c49f90b12b00a841e56236d792dfbf0",
@@ -120,7 +198,7 @@
             "libwhisper.so": "libwhisper.so.1",
             "libwhisper.so.1": "libwhisper.so.1.9.5"
           },
-          "sha256": "011f42d173e5e6747858cfc6785c3632d114f393dd1d4c969524662eb51125fc"
+          "sha256": "afccbb15a0e063385fc8eb9b303bf7a2934621b2c4d65ac8b5ed7691c0ee3350"
         },
         "whisper-v1.9.5-bin-ubuntu-cuda-x64.tar.gz": {
           "files": {
@@ -145,7 +223,7 @@
             "libggml-cpu-sse42.so": "6253d206f758d075ede1832f72ca8a415520532d74a7c426f9def62682fc6b7e",
             "libggml-cpu-x64.so": "010ac52a406167c891d5ab634ddb37977f1caf74943f38a9a695cc203775d3fb",
             "libggml-cpu-zen4.so": "d3df5b3e385bfa6e79dd6be035d19c3e0b1272b569b2a7a5eb09c9a4ed087a27",
-            "libggml-cuda.so": "c0efa5f436c32398f72e52fe73ee210c75008d15489453499763d563a9e1cb05",
+            "libggml-cuda.so": "955622d4d94aa1dc311a570d5e14316b286d91fd3d63d70238f3b231ab7dc710",
             "libggml.so.0.26.0": "efee0e6123538d319dcd8766c7b25bdda96bf835728c7ce66afd16110e075641",
             "libparakeet.so.1.9.5": "69cb64beb67d2b58cdde82fbff8698c66bc9478ed845c041f0faec013259e9db",
             "libwhisper.so.1.9.5": "927fc386893e30370f39725e49830ca4f7afad60d93075b913486c6470dac9db",
@@ -162,7 +240,7 @@
             "libwhisper.so": "libwhisper.so.1",
             "libwhisper.so.1": "libwhisper.so.1.9.5"
           },
-          "sha256": "45b4485197a42d7e2a2c3e0974204e8197ce9e774c3ae768b9325340142e7505"
+          "sha256": "c91b42f443574871bef58ee3c44b1c6b1f89844bc2cb931dbf2a08e5ccadb48b"
         },
         "whisper-v1.9.5-bin-ubuntu-vulkan-arm64.tar.gz": {
           "files": {
@@ -198,7 +276,7 @@
             "libwhisper.so": "libwhisper.so.1",
             "libwhisper.so.1": "libwhisper.so.1.9.5"
           },
-          "sha256": "07f12ba0564dc621ec65583fd89db1e0cada461591d410635b889cd1ffe55726"
+          "sha256": "7a19d808b271c09790667e0580ab67fa322770302ff1663b662e65cdaa5aac15"
         },
         "whisper-v1.9.5-bin-ubuntu-vulkan-x64.tar.gz": {
           "files": {
@@ -240,26 +318,26 @@
             "libwhisper.so": "libwhisper.so.1",
             "libwhisper.so.1": "libwhisper.so.1.9.5"
           },
-          "sha256": "f5f63a7a3241f882aa5eef617cb2a3db1205a1918d176b7779c92706815e43b2"
+          "sha256": "ebe74391654afe2030e117c4cc798995d68014e1588ca4f294f8b0028afbb450"
         },
         "whisper-v1.9.5-bin-windows-cpu-x64.zip": {
           "files": {
-            "ggml-base.dll": "676dea688fb85b6ad5103e4c1a119adbf0c5cb9bdd127350f54a505190922f13",
-            "ggml-cpu-alderlake.dll": "275835cf157a642d440356b2fd6bbc0c52e78ca0ac5c199deabaec88d79bb379",
-            "ggml-cpu-cannonlake.dll": "c730533b08b29b0015f4dd96a281afde9c4b57434114c5ef108f444cc252466f",
-            "ggml-cpu-cascadelake.dll": "33c5697a649f0869f4416fd72a523d88fd4421b118227024e7b686bfbe1abf26",
-            "ggml-cpu-haswell.dll": "bf42e0c139382fed044775d27ce779bfaa77417c848cbcd570c4a1b42e3df059",
-            "ggml-cpu-icelake.dll": "1cfa47a92813b7d10d8661a3129647b2d65dc084dd78198195ac209e4b7233ac",
-            "ggml-cpu-sandybridge.dll": "37934e4b310d53355b116034f212264ca91ec11aac856e15b0f7b6712c38a9d5",
-            "ggml-cpu-skylakex.dll": "8ef18675259a96c8f04ceb902036267adc6abc532c6353d9a54308bdb4317c73",
-            "ggml-cpu-sse42.dll": "9d6d88e5fa7dae88dc5d0edbf9478d2b3b606c7d3b78521ac9b8890b055887d3",
-            "ggml-cpu-x64.dll": "565888c11b0e9c04705fb0541c1ad7058ca74a676e3c96b0605c41a350edf691",
-            "ggml.dll": "ca6f96ac0c3ce7c26ef2d86514c7dee2bfd95e1f0fc464dbf845bb5d36c24191",
-            "parakeet.dll": "713b35cc7e98246b18fd728167cd4e0fb230d6f4556193a49f6f69e4e437243f",
-            "whisper.dll": "a7dbbd082773d243da8e3639956695cfb6050673accf7630610161b54723bb9f"
+            "ggml-base.dll": "9ed199f30451822a921b9455a45a3ca67155307a1c04eef032f85f5a74cdd0aa",
+            "ggml-cpu-alderlake.dll": "d23cf60f9cf42ec5d1b494c2c2ecf2c07f3877b599f7e63911a006e936bbf0cf",
+            "ggml-cpu-cannonlake.dll": "3a4571b74d4b363e7a8e03d366edabd11f338979378715350d04f00cfd005eea",
+            "ggml-cpu-cascadelake.dll": "8de061b837df9f056dd3cef37d9518c249c194bb6493809151a0103454988013",
+            "ggml-cpu-haswell.dll": "08f118d0009acba4caac2b3cec650b3d34a64f9985a91c3310cfc6a2301fd90e",
+            "ggml-cpu-icelake.dll": "9c50f4947407835127ace04a630f327b43d150e0c810fe3a9c856300cd348b84",
+            "ggml-cpu-sandybridge.dll": "ac8e30a804e55e03f9642bd6d58a20020da0e1751ce012eda5db3b7ed1028999",
+            "ggml-cpu-skylakex.dll": "5cc2f1d2dbfa91a75cccb268d2055fdde8ea653781c13d2c931bbc5eef576a3d",
+            "ggml-cpu-sse42.dll": "7dd9408815ecc563dc2defec1ce8e08d852f9c40fc1f3af9b7f2c9c512d81534",
+            "ggml-cpu-x64.dll": "d042e74eb532c41b245c2b0221ca96ab0cdf9ff3d28ff12cfe61b96ec7f861bd",
+            "ggml.dll": "1d574e0c956d5909077f509a87026194ed0d453c57d4d7f9c089f7b51732d2f6",
+            "parakeet.dll": "db8fe68071a7118f98d8d2b990126769d4eda171158bd75fc27b210705d108fb",
+            "whisper.dll": "81524cf2b8691217d792b6b6b45073db32a80171a4a4190bfbb123b5ff0cd43e"
           },
           "links": {},
-          "sha256": "3f4c39e79474430c6cf7801e5e73dc2e3d801c7245100c299e9ece2640169986"
+          "sha256": "3132e8a19ac7e75d982ca27e4f2039121d5de55fa59065d8e027b35be5ef7f40"
         },
         "whisper-v1.9.5-bin-windows-cuda-x64.zip": {
           "files": {
@@ -267,26 +345,26 @@
             "cublasLt64_12.dll": "2a896460bef60ed57ef32b0875812f355a6984e671d638bb632f5e8c1d7a831f",
             "cudart64_12.dll": "d28e42265da7462162a54da6b7a99ea4fa2caf8139d862bb500db875d0b32dfc",
             "cuinj64_124.dll": "5dc11bd8c0a2c8e18b454b8e2fcee19cf1f515349d4f8fd149da25e7577a94a8",
-            "ggml-base.dll": "bda71150b786ed1e8f2b280ee7bedbc67630edee43fd69c2a3d5fadb502c99da",
-            "ggml-cpu-alderlake.dll": "bf5d1a4f6beb5a55ad29075b921ddbdd6ac4a1dea0019d4d3eb62d22100c3402",
-            "ggml-cpu-cannonlake.dll": "6c1697c9b31c9fa7821514071d66b0bdb2e8a2a31a3e9ba0f7210c270cd2a7f3",
-            "ggml-cpu-cascadelake.dll": "95acf17ffe0aa2eb4ad3f534047f96a2ec6095c6980a806d8e904922011279d6",
-            "ggml-cpu-haswell.dll": "48c55df917dc78d0edb8ff25158f60644d13cc5cc46d42ef31c65c26525ae324",
-            "ggml-cpu-icelake.dll": "7fbd2c02dba7af0fac5f3b038b338cb48a03583031e961e6e4e21a51d7640427",
-            "ggml-cpu-sandybridge.dll": "cfce0a31a728878ab37a0413ab6cfb218e70dca01b4dfb736ba55b0f59ae15b1",
-            "ggml-cpu-skylakex.dll": "f7c2d97f0fbb805d39af0bd12e8767437f0e46bca22488c356a618572e2a9261",
-            "ggml-cpu-sse42.dll": "cecf5cd5a2751b248a67167cd6ea845260dd9e935155a16bd3208ebda1a449c0",
-            "ggml-cpu-x64.dll": "aba0ada72925f39282dc7c7422b1a43cf53cbf625003ed07faec2afdbc92fd9c",
-            "ggml-cuda.dll": "6c99d8fc1ed0a3da50889a98bdc0f67fe101c3003a09ae076dd439d5dfa2e663",
-            "ggml.dll": "45b08c18df4e1e820d959c63297b949f2c0c2969fbebfe68238a186b0fa7c2e1",
+            "ggml-base.dll": "a723f0aee8a08fc9ac54575155358694b90154707f21edd7a2b3638c71ab2e8b",
+            "ggml-cpu-alderlake.dll": "57a48a366b7fb4630a8ef509afcc4ea2cf6ca49c6b5a4d77ffd2e0ad774481d9",
+            "ggml-cpu-cannonlake.dll": "930fe73f6bfddb780cafe46ccee5d9d86610d0c88435f84195047a9af20cf34c",
+            "ggml-cpu-cascadelake.dll": "4c02b736a7bebab276d5da573fb45f2d66b51c68e820388ac763c30e29eb79db",
+            "ggml-cpu-haswell.dll": "48617a50abb792e73542f7d1f9e926e5be2ba89ec547e43cd09506b5a7b5c574",
+            "ggml-cpu-icelake.dll": "2eae5b07b8fe4b8e58f82ff24e5216211ee81f6eebf5dc58a9b93beee65d0e64",
+            "ggml-cpu-sandybridge.dll": "c2919a9920445db4fe59f2097b05deb75e95ba1f5a9551511dc2bb5ba8d13ad0",
+            "ggml-cpu-skylakex.dll": "4998cd6ecb2a13006e06d4ec32a7f1d62a534010de94c2baab7ffb9d49437fae",
+            "ggml-cpu-sse42.dll": "b17e32e4f5834c58e2e87aecb1e21bb3adf908908af76ad8b23ac792439eb8a5",
+            "ggml-cpu-x64.dll": "b1066aa6748e4a2a7ee2dc5258dadf2db5b36f955ba416dd5dcb47cd6e92ef0c",
+            "ggml-cuda.dll": "efad2fe288e718c956d2f53e3ee512f478854442996ff2ccaf1ea6dd5b843a53",
+            "ggml.dll": "bd16ff5ce4e70106cc3b3907c7eaeefe243d6410a38f143c714b7504d96508e7",
             "nvblas64_12.dll": "e42a77405e6e4b1cc661dcfcddead35ec62dcf59c6f9be1a3b5fab73d1f4c616",
             "nvrtc-builtins64_124.dll": "79888dba26c51475ea21fc7b47d2b9dd5b1ffaecc8e5ea22a49fa5f5a722eb43",
             "nvrtc64_120_0.dll": "3aa3cd8aa10437e212760c0e1ed730807811ec3bc330216dbfde4b26211d2243",
-            "parakeet.dll": "ff0edfe5ccb8f611cdc56bcb154e2677375ef5f5cb0837f748d0c7d4897f3ebb",
-            "whisper.dll": "97b69467a4094066d7c3e8a2ec75fb536da97ff95d7913a1ceb4693421462061"
+            "parakeet.dll": "7f912426cac810903cef1272b43c8f5e33ede224083e82c02c5c5f32798a1bd4",
+            "whisper.dll": "540d2ba9a9d899907f34d90ab5c7fb153abbb952bfb3d95429ac8fb7fd7aac55"
           },
           "links": {},
-          "sha256": "25e7d784378f145a937a488a4729ea4cbf42143c7782807dac413009184e686f"
+          "sha256": "63128d9683b7d2bc36ba82a55d3a6d44cb117d5d0e5687c91c8d9948ffa5ce0b"
         }
       },
       "tag": "v1.9.5"
