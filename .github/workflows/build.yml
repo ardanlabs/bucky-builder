@@ -204,8 +204,8 @@ jobs:
           archive: false
 
   # ─── CUDA ───────────────────────────────────────────────────────────────
-  # CUDA 12.9 baseline. Add a cuda-13 sibling job when consumer GPUs / Jetson
-  # firmware widely move to CUDA 13 — same pattern yzma uses to ship both.
+  # Retain CUDA 12.9 as the baseline and publish separate CUDA 13 bundles
+  # for hosts with CUDA 13 user-space libraries, matching llama-cpp-builder.
 
   build-cuda-amd64:
     needs: check-version
@@ -341,6 +341,156 @@ jobs:
         with:
           path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
           name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          archive: false
+
+  build-cuda-13-amd64:
+    needs: check-version
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:13.0.2-devel-ubuntu24.04
+      options: --platform linux/amd64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt update
+          apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-x86_64.sh
+          sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build amd64
+        working-directory: whisper.cpp
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
+            -DCMAKE_CUDA_ARCHITECTURES="75-virtual;80-virtual;86;89" \
+            -DCMAKE_DISABLE_FIND_PACKAGE_NCCL=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_CUDA=ON \
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Verify CUDA 13 backend dependencies
+        working-directory: whisper.cpp
+        run: |
+          set -eu
+          deps=$(readelf -d dist/lib/libggml-cuda.so)
+          printf '%s\n' "$deps"
+          printf '%s\n' "$deps" | grep -F 'Shared library: [libcudart.so.13]'
+          printf '%s\n' "$deps" | grep -F 'Shared library: [libcublas.so.13]'
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-x64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-x64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-x64.tar.gz
+          archive: false
+
+  build-cuda-13-arm64:
+    needs: check-version
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: ubuntu-22.04-arm
+    container:
+      image: nvidia/cuda:13.0.2-devel-ubuntu22.04
+      options: --platform linux/arm64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+      - name: Checkout whisper.cpp repo
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/whisper.cpp
+          path: whisper.cpp
+          ref: ${{ needs.check-version.outputs.whisper-tag }}
+          fetch-tags: 'true'
+      - name: Install dependencies + GCC 14
+        # Keep the same host compiler as the CUDA 12 arm64 build.
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt update
+          apt install -y software-properties-common
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          apt update
+          apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget gcc-14 g++-14
+      - name: Setup cmake 4.2.0
+        run: |
+          mkdir -p ./cmake-4.2.0
+          cd ./cmake-4.2.0
+          wget -O cmake.sh https://github.com/Kitware/CMake/releases/download/v4.2.0/cmake-4.2.0-linux-aarch64.sh
+          sh cmake.sh --prefix=/usr/local --skip-license
+          cd ..
+          rm -rf cmake-4.2.0
+      - name: Build arm64
+        working-directory: whisper.cpp
+        run: |
+          export CC=gcc-14
+          export CXX=g++-14
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--allow-shlib-undefined" \
+            -DCMAKE_CUDA_ARCHITECTURES="87;121" \
+            -DCMAKE_DISABLE_FIND_PACKAGE_NCCL=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_CUDA=ON \
+            -DGGML_BACKEND_DL=ON \
+            -DCMAKE_INSTALL_BINDIR=lib
+          cmake --build build --config Release -j $(nproc)
+          cmake --install build --prefix dist
+      - name: Verify CUDA 13 backend dependencies
+        working-directory: whisper.cpp
+        run: |
+          set -eu
+          deps=$(readelf -d dist/lib/libggml-cuda.so)
+          printf '%s\n' "$deps"
+          printf '%s\n' "$deps" | grep -F 'Shared library: [libcudart.so.13]'
+          printf '%s\n' "$deps" | grep -F 'Shared library: [libcublas.so.13]'
+      - name: Pack artifacts
+        run: |
+          tar -czvf whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-arm64.tar.gz \
+            --transform "s,./,whisper-${{ needs.check-version.outputs.whisper-tag }}/," \
+            -C ./whisper.cpp/dist/lib .
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v7
+        with:
+          path: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-arm64.tar.gz
+          name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-arm64.tar.gz
           archive: false
 
   # ─── Vulkan ─────────────────────────────────────────────────────────────
@@ -710,6 +860,8 @@ jobs:
       - build-cpu-arm64
       - build-cuda-amd64
       - build-cuda-arm64
+      - build-cuda-13-amd64
+      - build-cuda-13-arm64
       - build-vulkan-amd64
       - build-vulkan-arm64
       - build-darwin-xcframework
@@ -749,6 +901,20 @@ jobs:
           run-id: ${{ github.run_id }}
           artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
           destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-arm64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CUDA 13 x64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-x64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-x64.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download CUDA 13 arm64 artifact
+        uses: ./.github/actions/download-artifact
+        with:
+          run-id: ${{ github.run_id }}
+          artifact-name: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-arm64.tar.gz
+          destination: whisper-${{ needs.check-version.outputs.whisper-tag }}-bin-ubuntu-cuda-13-arm64.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download Vulkan x64 artifact
         uses: ./.github/actions/download-artifact
