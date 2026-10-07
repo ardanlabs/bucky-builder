@@ -29,6 +29,8 @@ Currently supported CUDA build configurations:
 | -------- | ------------ | ------ | ----------------------- |
 | amd64    | Ubuntu 24.04 | 12.9.1 | 75 PTX, 80 PTX, 86, 89 |
 | arm64    | Ubuntu 22.04 | 12.9.1 | 87, 121                 |
+| amd64    | Ubuntu 24.04 | 13.0.2 | 75 PTX, 80 PTX, 86, 89 |
+| arm64    | Ubuntu 22.04 | 13.0.2 | 87, 121                 |
 | x64      | Windows      | 12.4   | 75 PTX, 80 PTX, 86, 89 |
 
 Compute architectures `75` and `80` cover Turing and first-generation Ampere
@@ -38,6 +40,24 @@ for consumer video cards (RTX 3090 / 4090).
 
 Compute architecture `87` is used by Jetson Orin and Jetson AGX. Compute
 architecture `121` is built natively for DGX Spark.
+
+Linux supports both CUDA 12 and CUDA 13. The unnumbered `cuda` bundles use
+CUDA 12.9.1, while
+`cuda-13` bundles use CUDA 13.0.2, matching llama-cpp-builder's CUDA 13 toolkit.
+Both CUDA majors build on pull requests; the CUDA 13 jobs also check that
+`libggml-cuda.so` links `libcudart.so.13` and `libcublas.so.13` before packaging.
+
+Linux bundles do not include NVIDIA's CUDA runtime or cuBLAS libraries. The
+host or container must supply the matching major version: `.so.12` for CUDA
+12 bundles, `.so.13` for CUDA 13 bundles, plus a compatible NVIDIA driver.
+A driver's reported CUDA version is a compatibility capability, not evidence
+that the corresponding user-space libraries are installed. CUDA 12 and 13
+runtime libraries can coexist in the same image. Keep Jetson Orin deployments
+on CUDA 12 unless their installed JetPack/runtime supports CUDA 13.
+
+Windows remains on CUDA 12.4. Its CUDA bundle includes NVIDIA runtime DLLs,
+so a compatible NVIDIA driver is required, but a separate CUDA toolkit
+installation is not.
 
 ## Vulkan
 
@@ -58,7 +78,7 @@ Currently supported CPU build configurations:
 | CPU arch | OS           | Notes                                       |
 | -------- | ------------ | ------------------------------------------- |
 | amd64    | Ubuntu 24.04 | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
-| arm64    | Ubuntu 22.04 |                                             |
+| arm64    | Ubuntu 22.04 | `GGML_CPU_ALL_VARIANTS=ON`; GCC 14          |
 | x64      | Windows      | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
 
 ## macOS
@@ -76,7 +96,9 @@ the canonical upstream one.
 
 ## Artifacts
 
-For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
+The build workflow publishes these eleven bundles for new whisper.cpp
+release tags. Older releases may contain fewer bundles, including releases
+from before CUDA 13 support was added.
 
 | Filename                                              |
 | ----------------------------------------------------- |
@@ -84,6 +106,8 @@ For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
 | `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`          |
 | `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`           |
 | `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`         |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-13-x64.tar.gz`        |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-13-arm64.tar.gz`      |
 | `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz`         |
 | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz`       |
 | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`       |
@@ -92,14 +116,15 @@ For each whisper.cpp release tag (e.g. `v1.8.4`), this repo publishes:
 
 All tarballs unpack to `whisper-vX.Y.Z/` containing `libwhisper.so`,
 `libggml.so`, `libggml-base.so`, `libggml-cpu.so`, the per-microarch CPU
-variants from `GGML_CPU_ALL_VARIANTS=ON` (`libggml-cpu-x64.so`,
+variants from `GGML_CPU_ALL_VARIANTS=ON` (on x64: `libggml-cpu-x64.so`,
 `libggml-cpu-haswell.so`, `libggml-cpu-skylakex.so`, `libggml-cpu-zen4.so`,
 …), and (where applicable) `libggml-cuda.so` / `libggml-vulkan.so`. The
 backend MODULEs are installed alongside the core libs via
 `-DCMAKE_INSTALL_BINDIR=lib` so the dlopen-based registry
 (`ggml_backend_load_all_from_path`) finds them on a single path. RPATH is
-`$ORIGIN`, so the libraries are self-contained regardless of where bucky
-drops them.
+`$ORIGIN`, so the bundled libraries can find each other regardless of where
+bucky drops them. System dependencies, including the matching CUDA runtime
+libraries for CUDA bundles, must still be provided by the host or container.
 
 ## Integrity manifests
 
@@ -107,12 +132,14 @@ The Build workflow automatically creates an integrity manifest after it builds
 all supported platform bundles. Developers do not need to calculate or add
 digests manually for new releases.
 
-Each release publishes these files:
+Each release with manifest generation publishes these GitHub release assets:
 
 | Filename                    | Contents                                                       |
 | --------------------------- | -------------------------------------------------------------- |
-| `digests/vX.Y.Z.json`       | SHA-256 values for every archive and its installed files/links |
-| `digests/vX.Y.Z.json.sha256` | SHA-256 of the exact manifest bytes                            |
+| `vX.Y.Z.json`              | SHA-256 values for every archive and its installed files/links |
+| `vX.Y.Z.json.sha256`        | SHA-256 of the exact manifest bytes                            |
+
+In the repository and on GitHub Pages, these files live under `digests/`.
 
 The SHA-256 of the manifest is the version-level digest used in a Bucky pin:
 
@@ -175,19 +202,24 @@ gh workflow run Build --repo ardanlabs/bucky-builder -f force=true
 
 Or via the Actions tab → Build → Run workflow.
 
-The checked-in `v1.9.3` manifest is a one-time backfill for bundles that were
-published before manifest generation was added. After these changes reach
-`main`, run the forced build once to attach the manifest files to the existing
-release, update its release notes, and publish the files through GitHub Pages.
+**Pinned-manifest warning:** a forced rebuild replaces release archives and
+regenerates the manifest. Adding CUDA 13 entries also changes its SHA-256, so
+an existing Bucky release's manifest pin will reject the replacement. Prefer
+publishing the new build matrix with the next upstream tag. Backfilling an
+existing tag requires coordinating new consumer pins and the effect on older
+Bucky releases; do not treat it as a transparent update.
 
 ## Adding a new build target
 
 Add a new job to [`.github/workflows/build.yml`](./.github/workflows/build.yml)
 that copies one of the existing CUDA / Vulkan / CPU jobs as a starting
-point, then add it to the `release` job's `needs:` list. Keep the artifact
+point, then add it to the `release` job's `needs:` list and artifact-download
+steps. The digest generator discovers every downloaded archive, including
+both CUDA majors. Keep the artifact
 filename pattern `whisper-${TAG}-bin-ubuntu-${backend}-${arch}.tar.gz` so
 bucky's resolver in [`pkg/download/download.go`](https://github.com/ardanlabs/bucky/blob/main/pkg/download/download.go)
-can find it.
+can find it. Versioned backends such as `cuda-13` also require corresponding
+resolver support in Bucky.
 
 ## License
 
