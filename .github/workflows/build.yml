@@ -24,10 +24,10 @@ concurrency:
 
 jobs:
   test-digest-manifest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Test digest manifest generation
         run: .github/scripts/tests/test-build-digests.sh
 
@@ -36,16 +36,16 @@ jobs:
   # whisper-tag != current-tag so the scheduled check is a no-op until a new
   # whisper.cpp version ships.
   check-version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       whisper-tag: ${{ steps.tags.outputs.whisper-tag }}
       current-tag: ${{ steps.tags.outputs.current-tag }}
       generated: ${{ steps.tags.outputs.generated }}
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
@@ -83,13 +83,13 @@ jobs:
 
   build-cpu-amd64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
@@ -140,28 +140,23 @@ jobs:
 
   build-cpu-arm64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-22.04-arm
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: ubuntu-26.04-arm
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
       - name: Install dependencies + GCC 14
-        # Ubuntu 22.04 ships GCC 11; whisper.cpp's ggml needs newer C++17.
-        # Pull GCC 14 from the ubuntu-toolchain-r/test PPA in ~30s instead of
-        # building from source (~30min).
+        # Ubuntu 26.04 provides GCC 14 directly; no toolchain PPA is needed.
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget gcc-14 g++-14
       - name: Setup cmake 4.2.0
@@ -210,15 +205,15 @@ jobs:
   build-cuda-amd64:
     needs: check-version
     if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: nvidia/cuda:12.9.1-devel-ubuntu24.04
       options: --platform linux/amd64
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
@@ -274,15 +269,15 @@ jobs:
   build-cuda-arm64:
     needs: check-version
     if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-26.04-arm
     container:
       image: nvidia/cuda:12.9.1-devel-ubuntu22.04
       options: --platform linux/arm64
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
@@ -346,26 +341,27 @@ jobs:
   build-cuda-13-amd64:
     needs: check-version
     if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
-      image: nvidia/cuda:13.0.2-devel-ubuntu24.04
+      image: nvidia/cuda:13.5.0-devel-ubuntu26.04
       options: --platform linux/amd64
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
-      - name: Install dependencies
+      - name: Install dependencies + GCC 14
+        # Keep a consistent host compiler across both CUDA 13 architectures.
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           apt update
-          apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget
+          apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget gcc-14 g++-14
       - name: Setup cmake 4.2.0
         run: |
           mkdir -p ./cmake-4.2.0
@@ -377,6 +373,9 @@ jobs:
       - name: Build amd64
         working-directory: whisper.cpp
         run: |
+          export CC=gcc-14
+          export CXX=g++-14
+          export CUDAHOSTCXX=g++-14
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -418,28 +417,25 @@ jobs:
   build-cuda-13-arm64:
     needs: check-version
     if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-26.04-arm
     container:
-      image: nvidia/cuda:13.0.2-devel-ubuntu22.04
+      image: nvidia/cuda:13.5.0-devel-ubuntu26.04
       options: --platform linux/arm64
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
       - name: Install dependencies + GCC 14
-        # Keep the same host compiler as the CUDA 12 arm64 build.
+        # Ubuntu 26.04 provides the pinned host compiler without a PPA.
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          apt update
-          apt install -y software-properties-common
-          add-apt-repository -y ppa:ubuntu-toolchain-r/test
           apt update
           apt install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev wget gcc-14 g++-14
       - name: Setup cmake 4.2.0
@@ -455,6 +451,7 @@ jobs:
         run: |
           export CC=gcc-14
           export CXX=g++-14
+          export CUDAHOSTCXX=g++-14
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -500,35 +497,27 @@ jobs:
 
   build-vulkan-amd64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
-      - name: Install dependencies + Vulkan SDK
-        # LunarG's apt repo ships the full Vulkan SDK system-wide, which is
-        # far more reliable than fetching their .tar.xz (the tarball URL
-        # pattern shifts between releases). On the runner, ubuntu-latest =
-        # noble (24.04), so use the noble package list. No `source
-        # setup-env.sh` needed afterwards — pkg-config + /usr/include find
-        # everything.
+      - name: Install dependencies + Vulkan development tools
+        # Use one distro's headers, loader, and shader compiler instead of
+        # mixing LunarG's Ubuntu 24.04 repository with Ubuntu 26.04 packages.
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           set -e
           sudo apt-get update
-          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget gpg
-          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
-          sudo apt-get update
-          sudo apt-get install -y vulkan-sdk
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget libvulkan-dev glslc spirv-headers
       - name: Setup cmake 4.2.0
         run: |
           mkdir -p ./cmake-4.2.0
@@ -570,30 +559,25 @@ jobs:
 
   build-vulkan-arm64:
     needs: check-version
-    if: ${{ needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
-    runs-on: ubuntu-22.04-arm
+    if: ${{ github.event_name == 'pull_request' || needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force }}
+    runs-on: ubuntu-26.04-arm
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
-      - name: Install dependencies + GCC 14
-        # Pull GCC 14 from ubuntu-toolchain-r/test PPA in ~30s instead of
-        # building from source (~30min).
+      - name: Install dependencies + Vulkan development tools + GCC 14
+        # All build dependencies come from Ubuntu 26.04 on both architectures.
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:kisak/kisak-mesa
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-          sudo apt-get update
-          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget gcc-14 g++-14
+          sudo apt-get install -y build-essential ninja-build libgomp1 git libssl-dev libcurl4-openssl-dev mesa-vulkan-drivers wget gcc-14 g++-14 libvulkan-dev glslc spirv-headers
       - name: Setup cmake 4.2.0
         run: |
           mkdir -p ./cmake-4.2.0
@@ -602,27 +586,11 @@ jobs:
           sudo sh cmake.sh --prefix=/usr/local --skip-license
           cd ..
           rm -rf cmake-4.2.0
-      - name: Set Vulkan SDK version
-        run: echo "VULKAN_SDK_VERSION=1.4.335.0" >> "$GITHUB_ENV"
-      - name: Use Vulkan SDK Cache
-        uses: actions/cache@v5
-        id: cache-sdk
-        with:
-          path: ./vulkan_sdk
-          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-${{ runner.os }}-arm64-v2
-      - name: Setup Vulkan SDK
-        if: steps.cache-sdk.outputs.cache-hit != 'true'
-        uses: ./.github/actions/linux-setup-vulkan
-        with:
-          path: ./vulkan_sdk
-          version: ${{ env.VULKAN_SDK_VERSION }}
-          osversion: 22.04
       - name: Build arm64
         working-directory: whisper.cpp
         run: |
           export CC=gcc-14
           export CXX=g++-14
-          source $GITHUB_WORKSPACE/vulkan_sdk/setup-env.sh
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=ON \
@@ -668,9 +636,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
@@ -722,16 +690,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
           ref: ${{ needs.check-version.outputs.whisper-tag }}
           fetch-tags: 'true'
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
       - name: Build x64
         working-directory: whisper.cpp
         run: |
@@ -772,9 +740,9 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout whisper.cpp repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ggml-org/whisper.cpp
           path: whisper.cpp
@@ -816,7 +784,7 @@ jobs:
           "CUDA_PATH=$cudaDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CUDA_PATH_V12_4=$cudaDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
       - name: Build x64 CUDA 12.4
         shell: cmd
         working-directory: whisper.cpp
@@ -868,12 +836,12 @@ jobs:
       - build-windows-cpu-x64
       - build-windows-cuda-x64
     if: ${{ github.event_name != 'pull_request' && (needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Download CPU x64 artifact
         uses: ./.github/actions/download-artifact
         with:
@@ -1013,7 +981,7 @@ jobs:
       - check-version
       - publish-version
     if: ${{ github.event_name != 'pull_request' && (needs.check-version.outputs.whisper-tag != needs.check-version.outputs.current-tag || inputs.force) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Trigger bucky CI
         # Requires a repo-level secret BUCKY_BUILD_ACCESS = a PAT with

@@ -25,12 +25,12 @@ plays for [yzma](https://github.com/hybridgroup/yzma).
 
 Currently supported CUDA build configurations:
 
-| CPU arch | OS           | CUDA   | Nvidia Compute arch     |
-| -------- | ------------ | ------ | ----------------------- |
+| CPU arch | OS           | CUDA   | Nvidia Compute arch    |
+| -------- | ------------ | ------ | ---------------------- |
 | amd64    | Ubuntu 24.04 | 12.9.1 | 75 PTX, 80 PTX, 86, 89 |
-| arm64    | Ubuntu 22.04 | 12.9.1 | 87, 121                 |
-| amd64    | Ubuntu 24.04 | 13.0.2 | 75 PTX, 80 PTX, 86, 89 |
-| arm64    | Ubuntu 22.04 | 13.0.2 | 87, 121                 |
+| arm64    | Ubuntu 22.04 | 12.9.1 | 87, 121                |
+| amd64    | Ubuntu 26.04 | 13.5.0 | 75 PTX, 80 PTX, 86, 89 |
+| arm64    | Ubuntu 26.04 | 13.5.0 | 87, 121                |
 | x64      | Windows      | 12.4   | 75 PTX, 80 PTX, 86, 89 |
 
 Compute architectures `75` and `80` cover Turing and first-generation Ampere
@@ -43,13 +43,17 @@ architecture `121` is built natively for DGX Spark.
 
 Linux supports both CUDA 12 and CUDA 13. The unnumbered `cuda` bundles use
 CUDA 12.9.1, while
-`cuda-13` bundles use CUDA 13.0.2, matching llama-cpp-builder's CUDA 13 toolkit.
-Both CUDA majors build on pull requests; the CUDA 13 jobs also check that
+`cuda-13` bundles use CUDA 13.5.0. All Linux host runners are pinned to
+Ubuntu 26.04; CUDA 12 retains the older build containers listed above because
+NVIDIA does not provide CUDA 12.9.1 images for Ubuntu 26.04. Both CUDA majors
+build on pull requests; the CUDA 13 jobs also check that
 `libggml-cuda.so` links `libcudart.so.13` and `libcublas.so.13` before packaging.
 
 Linux bundles do not include NVIDIA's CUDA runtime or cuBLAS libraries. The
 host or container must supply the matching major version: `.so.12` for CUDA
 12 bundles, `.so.13` for CUDA 13 bundles, plus a compatible NVIDIA driver.
+For the new CUDA 13 builds, use CUDA 13.5 user-space libraries and a driver
+that supports the generated PTX; matching SONAMEs alone do not prove compatibility.
 A driver's reported CUDA version is a compatibility capability, not evidence
 that the corresponding user-space libraries are installed. CUDA 12 and 13
 runtime libraries can coexist in the same image. Keep Jetson Orin deployments
@@ -63,13 +67,14 @@ installation is not.
 
 Currently supported Vulkan build configurations:
 
-| CPU arch | OS           | Vulkan SDK                  |
-| -------- | ------------ | --------------------------- |
-| amd64    | Ubuntu 24.04 | latest LunarG noble package |
-| arm64    | Ubuntu 22.04 | 1.4.335.0                   |
+| CPU arch | OS           | Vulkan development tools                                 |
+| -------- | ------------ | -------------------------------------------------------- |
+| amd64    | Ubuntu 26.04 | Ubuntu `libvulkan-dev`, `glslc`, `spirv-headers`         |
+| arm64    | Ubuntu 26.04 | Ubuntu `libvulkan-dev`, `glslc`, `spirv-headers`; GCC 14 |
 
-The arm64 prebuilt Vulkan SDK comes from
-<https://github.com/jakoch/vulkan-sdk-arm>.
+Both architectures use Ubuntu's own Vulkan headers, loader, and shader
+compiler. No LunarG apt repository or community SDK tarball is required.
+Both Vulkan targets build on pull requests.
 
 ## CPU
 
@@ -77,17 +82,28 @@ Currently supported CPU build configurations:
 
 | CPU arch | OS           | Notes                                       |
 | -------- | ------------ | ------------------------------------------- |
-| amd64    | Ubuntu 24.04 | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
-| arm64    | Ubuntu 22.04 | `GGML_CPU_ALL_VARIANTS=ON`; GCC 14          |
+| amd64    | Ubuntu 26.04 | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
+| arm64    | Ubuntu 26.04 | `GGML_CPU_ALL_VARIANTS=ON`; GCC 14          |
 | x64      | Windows      | `GGML_CPU_ALL_VARIANTS=ON` runtime dispatch |
+
+Both Linux CPU targets build on pull requests.
+
+### Linux runtime compatibility
+
+New CPU, Vulkan, and CUDA 13 bundles are built on Ubuntu 26.04 and use that
+distribution as their supported runtime baseline (glibc 2.43). Older Linux
+distributions may not supply the required glibc or C++ runtime symbols.
+This does not change older published releases; CUDA 12 retains its older
+build environments. Use a matching runtime or a custom build when targeting
+older distributions.
 
 ## macOS
 
 Currently supported macOS build configurations:
 
-| CPU arch         | OS              | Notes                                     |
-| ---------------- | --------------- | ----------------------------------------- |
-| arm64 + x86_64   | macOS 13.3+     | Universal xcframework; Metal + CoreML     |
+| CPU arch       | OS          | Notes                                 |
+| -------------- | ----------- | ------------------------------------- |
+| arm64 + x86_64 | macOS 13.3+ | Universal xcframework; Metal + CoreML |
 
 Built on `macos-latest` by running upstream's `build-xcframework.sh` and
 then repackaging with only the macOS slice via `xcodebuild
@@ -100,19 +116,19 @@ The build workflow publishes these eleven bundles for new whisper.cpp
 release tags. Older releases may contain fewer bundles, including releases
 from before CUDA 13 support was added.
 
-| Filename                                              |
-| ----------------------------------------------------- |
-| `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`            |
-| `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`          |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`           |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`         |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-13-x64.tar.gz`        |
-| `whisper-vX.Y.Z-bin-ubuntu-cuda-13-arm64.tar.gz`      |
-| `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz`         |
-| `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz`       |
-| `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`       |
-| `whisper-vX.Y.Z-bin-windows-cpu-x64.zip`              |
-| `whisper-vX.Y.Z-bin-windows-cuda-x64.zip`             |
+| Filename                                         |
+| ------------------------------------------------ |
+| `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`       |
+| `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`     |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`      |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`    |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-13-x64.tar.gz`   |
+| `whisper-vX.Y.Z-bin-ubuntu-cuda-13-arm64.tar.gz` |
+| `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz`    |
+| `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz`  |
+| `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`  |
+| `whisper-vX.Y.Z-bin-windows-cpu-x64.zip`         |
+| `whisper-vX.Y.Z-bin-windows-cuda-x64.zip`        |
 
 All tarballs unpack to `whisper-vX.Y.Z/` containing `libwhisper.so`,
 `libggml.so`, `libggml-base.so`, `libggml-cpu.so`, the per-microarch CPU
@@ -134,10 +150,10 @@ digests manually for new releases.
 
 Each release with manifest generation publishes these GitHub release assets:
 
-| Filename                    | Contents                                                       |
-| --------------------------- | -------------------------------------------------------------- |
-| `vX.Y.Z.json`              | SHA-256 values for every archive and its installed files/links |
-| `vX.Y.Z.json.sha256`        | SHA-256 of the exact manifest bytes                            |
+| Filename             | Contents                                                       |
+| -------------------- | -------------------------------------------------------------- |
+| `vX.Y.Z.json`        | SHA-256 values for every archive and its installed files/links |
+| `vX.Y.Z.json.sha256` | SHA-256 of the exact manifest bytes                            |
 
 In the repository and on GitHub Pages, these files live under `digests/`.
 
